@@ -80,6 +80,14 @@ To be written once the first end-to-end pipeline runs.
   (logN=17) keeps non-negligible optical depth far in the wings where
   the Gaussian-only version has already dropped to ~0 -- the damping
   wings `optical_depth_gaussian` cannot capture.
-- Next: equivalent width measurement (`ew.py`) on top of these
-  profiles, then the synthetic spectrum generator (`io.py`) to start
-  validating against known injected (z, N, b).
+- `ew.py`: `measure_ew(wave, flux, continuum, error=None, wave_min=None,
+  wave_max=None)` -- equivalent width via trapezoidal integration of
+  `1 - flux/continuum` over an optional wavelength window, with error
+  propagation from per-pixel flux uncertainties (assumes the continuum
+  itself is error-free). Validated against the closed-form linear-regime
+  EW formula (`W = pi * r_e * N * f * lambda_rest^2`, independent of b)
+  on a weak synthetic line: numeric integral matches analytic formula
+  to 0.08%.
+- Next: the synthetic spectrum generator (`io.py`) to start validating
+  the full chain (profiles -> EW -> COG) against known injected
+  (z, N, b), across linear, saturated and damped regimes.
