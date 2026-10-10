@@ -53,4 +53,6 @@ Dec 9 & Oral presentation.\\
 \textbf{Working habits.} Shared git repo; 15--20 min weekly sync; integrate A's output into B's fitter every 1--2 weeks; review each other's code so both understand the full pipeline.
 
 \textbf{To decide together.} Which side each of us takes; which real spectrum/dataset; Python for both; first meeting to fix the data classes.
+
+\textbf{Status (see README progress log for details).} Repo scaffolded: \texttt{spectral\_diag/} package with \texttt{Spectrum}, \texttt{Line}, \texttt{Absorber} classes and one stub module per planned component; \texttt{pyproject.toml} for \texttt{pip install -e .}. First real code: \texttt{profiles.optical\_depth\_gaussian} (Doppler-only optical depth, no damping wings yet) with a validation notebook (\texttt{notebooks/01\_gaussian\_optical\_depth.ipynb}) showing line saturation vs.\ N and broadening vs.\ b. Next: full Voigt profile (add the Gamma/damping term via \texttt{scipy.special.wofz}).
 \end{document}

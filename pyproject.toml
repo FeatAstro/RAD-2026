@@ -1,0 +1,21 @@
+[project]
+name = "spectral_diag"
+version = "0.1.0"
+description = "Spectral line diagnostics for quasar absorption spectra"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "scipy",
+    "astropy",
+    "astroquery",
+    "matplotlib",
+    "lmfit",
+    "emcee",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["spectral_diag"]
