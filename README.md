@@ -61,21 +61,23 @@ To be written once the first end-to-end pipeline runs.
   Doppler-only (no damping wings) optical depth for a single
   transition, as a stepping stone to the full Voigt profile.
   `tau(lambda) = tau0 * exp(-(dv/b)^2)`, with `dv` the velocity offset
-  from line center (km/s) and `tau0` set by N, f, lambda_rest, b
-  (standard constant 1.4974e-15 for N in cm^-2, lambda_rest in
-  Angstrom, b in km/s).
-- `notebooks/01_gaussian_optical_depth.ipynb`: plots transmission
-  `exp(-tau)` while varying N at fixed b, and b at fixed N, for a
-  test line. Shows the line deepening with N until it starts to
-  saturate (core stops deepening, only wings keep growing -- this is
-  why the curve of growth later is not a straight line), and
-  broadening/shallowing with b.
+  from line center (km/s) and `tau0` set by N, f, lambda_rest, b via
+  `TAU0_CONST` (N in cm^-2, lambda_rest in Angstrom, b in km/s) --
+  computed from the CODATA classical electron radius via
+  `scipy.constants`, not a hardcoded literal.
+- `notebooks/01_profiles.ipynb`: plots transmission `exp(-tau)` while
+  varying N at fixed b, and b at fixed N, for a test line. Shows the
+  line deepening with N until it starts to saturate (core stops
+  deepening, only wings keep growing -- this is why the curve of
+  growth later is not a straight line), and broadening/shallowing
+  with b.
 - `profiles.py`: added `voigt(x, a)` (`Re[scipy.special.wofz(x + i*a)]`)
   and `optical_depth(wave, line, logN, b, z)` -- the full Voigt optical
   depth, adding the Lorentzian/damping term (`line.gamma`) on top of
   the Gaussian term, via the damping parameter
-  `a = 7.9577e-15 * gamma * lambda_rest / b` (ratio of Lorentzian to
-  Doppler width). Validated: matches `optical_depth_gaussian` to
+  `a = A_CONST * gamma * lambda_rest / b` (ratio of Lorentzian to
+  Doppler width; `A_CONST` is a pure unit-conversion factor, no
+  physical constants needed). Validated: matches `optical_depth_gaussian` to
   machine precision when `gamma -> 0`, and for a saturated line
   (logN=17) keeps non-negligible optical depth far in the wings where
   the Gaussian-only version has already dropped to ~0 -- the damping
@@ -88,6 +90,43 @@ To be written once the first end-to-end pipeline runs.
   EW formula (`W = pi * r_e * N * f * lambda_rest^2`, independent of b)
   on a weak synthetic line: numeric integral matches analytic formula
   to 0.08%.
-- Next: the synthetic spectrum generator (`io.py`) to start validating
-  the full chain (profiles -> EW -> COG) against known injected
-  (z, N, b), across linear, saturated and damped regimes.
+- `io.py`: `make_synthetic(wave, absorbers, continuum=1.0, snr=None, rng=None)`
+  -- builds a `Spectrum` from a list of `Absorber`s (summing tau over
+  all their lines -- exact, not an approximation, since transmissions
+  multiply and optical depths add). `snr=None` gives a noise-free
+  spectrum (`error=0`, for checking against closed-form truth);
+  `snr=<value>` adds Gaussian noise at a constant level relative to
+  the continuum. No LSF convolution yet (`profiles.apply_lsf` doesn't
+  exist), so this is the intrinsic model spectrum, not yet a realistic
+  stand-in for a specific instrument.
+  Validated end-to-end: (1) noise-free weak-line spectrum's EW matches
+  the closed-form linear-regime formula to 0.08%; (2) over 400 noisy
+  Monte Carlo realizations, the mean *predicted* EW uncertainty from
+  `measure_ew`'s error propagation (0.00745) matches the *actual*
+  scatter in measured EW (0.00764) to ~2.5% -- confirms the error bars
+  are correctly calibrated against real injected noise, not just
+  structurally plausible.
+- Added validation notebooks for the last three features (each with
+  practical, assertion-backed checks, not just ad-hoc scripts): the
+  Voigt checks (Voigt reduces to Gaussian as damping -> 0; damping
+  wings appear for a saturated line, where Gaussian-only has already
+  dropped to 0) ended up in `notebooks/01_profiles.ipynb` alongside
+  the Gaussian ones (merged -- see reorganization note below),
+  `notebooks/02_equivalent_width.ipynb` (measured EW matches the
+  closed-form linear-regime formula to 0.08%; EW is independent of b
+  in that regime, to 0.26% spread across b=3-60 km/s),
+  `notebooks/03_synthetic_spectrum.ipynb` (same closed-form check
+  through the full `Spectrum` object; 400 noisy Monte Carlo
+  realizations confirm predicted vs. actual EW uncertainty agree to
+  ~2.5%).
+- Reorganized `notebooks/`: merged the Gaussian and Voigt notebooks
+  into one `01_profiles.ipynb` (they test the same progression,
+  Gaussian then full Voigt) and moved the real-CIV reference material
+  (atomic data table + observed quasar spectrum images) into its own
+  `00_reference_civ_line.ipynb`, linked from the others instead of
+  re-embedded in each -- avoids duplicating ~400KB of images per
+  notebook. Going forward, notebooks are organized by validation
+  theme rather than 1:1 per function.
+- Next: continuum fitting (`continuum.py`) and the theoretical curve
+  of growth (`cog.py`), to close the loop toward fitting (z, N, b)
+  from measured EWs across linear, saturated and damped regimes.

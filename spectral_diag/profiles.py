@@ -10,9 +10,29 @@ Planned contents:
 """
 
 import numpy as np
+from scipy import constants as _const
 from scipy.special import wofz
 
-C_KMS = 299792.458  # speed of light, km/s
+C_KMS = _const.c * 1e-3  # speed of light, km/s (exact, from scipy.constants)
+
+# tau0 = sqrt(pi) * r_e * c * f * lambda_rest * N / b, with r_e the
+# classical electron radius (see NOTES_perso.tex Sec. 4 -- this is the
+# same combination as e^2/(m_e*c) in cgs, via r_e = e^2/(m_e*c^2)).
+# Built from CODATA constants rather than a truncated literature value,
+# then converted so N is in cm^-2, lambda_rest in Angstrom, b in km/s.
+_R_E_CM = _const.physical_constants["classical electron radius"][0] * 1e2  # m -> cm
+_C_CMS = _const.c * 1e2  # m/s -> cm/s
+_ANGSTROM_TO_CM = 1e-8
+_KMS_TO_CMS = 1e5
+
+TAU0_CONST = np.sqrt(np.pi) * _R_E_CM * _C_CMS * _ANGSTROM_TO_CM / _KMS_TO_CMS
+# tau0 = TAU0_CONST * N[cm^-2] * f * lambda_rest[Angstrom] / b[km/s]
+
+# a = Gamma * lambda_rest / (4 pi b), the Voigt damping parameter (see
+# NOTES_perso.tex Sec. 5 and 6) -- a pure unit-conversion factor
+# (Angstrom -> cm, km/s -> cm/s), no fundamental constants beyond pi.
+A_CONST = _ANGSTROM_TO_CM / (4 * np.pi * _KMS_TO_CMS)
+# a = A_CONST * gamma[s^-1] * lambda_rest[Angstrom] / b[km/s]
 
 
 def optical_depth_gaussian(wave, line, logN, b, z):
@@ -43,10 +63,7 @@ def optical_depth_gaussian(wave, line, logN, b, z):
     N = 10**logN
     lam0_obs = line.wave_rest * (1 + z)
     dv = C_KMS * (wave - lam0_obs) / lam0_obs  # km/s
-    # tau0 = sqrt(pi) * e^2 * f * lambda_rest * N / (m_e * c * b), with the
-    # cgs constant sqrt(pi)*e^2/(m_e*c) folded in and converted for
-    # lambda_rest in Angstrom and b in km/s (N in cm^-2).
-    tau0 = 1.4974e-15 * N * line.f * line.wave_rest / b
+    tau0 = TAU0_CONST * N * line.f * line.wave_rest / b
     return tau0 * np.exp(-(dv / b) ** 2)
 
 
@@ -92,10 +109,6 @@ def optical_depth(wave, line, logN, b, z):
     lam0_obs = line.wave_rest * (1 + z)
     dv = C_KMS * (wave - lam0_obs) / lam0_obs  # km/s
     x = dv / b
-    # a = Gamma * lambda_rest / (4 pi b), the ratio of the Lorentzian
-    # (damping) width to the Doppler width; see NOTES_perso.tex. The
-    # 7.9577e-15 folds in the unit conversion for lambda_rest in
-    # Angstrom and b in km/s (Gamma in s^-1).
-    a = 7.9577e-15 * line.gamma * line.wave_rest / b
-    tau0 = 1.4974e-15 * N * line.f * line.wave_rest / b
+    a = A_CONST * line.gamma * line.wave_rest / b
+    tau0 = TAU0_CONST * N * line.f * line.wave_rest / b
     return tau0 * voigt(x, a)
