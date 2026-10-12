@@ -13,7 +13,7 @@ import numpy as np
 from scipy import constants as _const
 from scipy.special import wofz
 
-C_KMS = _const.c * 1e-3  # speed of light, km/s (exact, from scipy.constants)
+from .core import ANGSTROM_TO_CM, C_KMS, KMS_TO_CMS
 
 # tau0 = sqrt(pi) * r_e * c * f * lambda_rest * N / b, with r_e the
 # classical electron radius (see NOTES_perso.tex Sec. 4 -- this is the
@@ -22,16 +22,14 @@ C_KMS = _const.c * 1e-3  # speed of light, km/s (exact, from scipy.constants)
 # then converted so N is in cm^-2, lambda_rest in Angstrom, b in km/s.
 _R_E_CM = _const.physical_constants["classical electron radius"][0] * 1e2  # m -> cm
 _C_CMS = _const.c * 1e2  # m/s -> cm/s
-_ANGSTROM_TO_CM = 1e-8
-_KMS_TO_CMS = 1e5
 
-TAU0_CONST = np.sqrt(np.pi) * _R_E_CM * _C_CMS * _ANGSTROM_TO_CM / _KMS_TO_CMS
+TAU0_CONST = np.sqrt(np.pi) * _R_E_CM * _C_CMS * ANGSTROM_TO_CM / KMS_TO_CMS
 # tau0 = TAU0_CONST * N[cm^-2] * f * lambda_rest[Angstrom] / b[km/s]
 
 # a = Gamma * lambda_rest / (4 pi b), the Voigt damping parameter (see
 # NOTES_perso.tex Sec. 5 and 6) -- a pure unit-conversion factor
 # (Angstrom -> cm, km/s -> cm/s), no fundamental constants beyond pi.
-A_CONST = _ANGSTROM_TO_CM / (4 * np.pi * _KMS_TO_CMS)
+A_CONST = ANGSTROM_TO_CM / (4 * np.pi * KMS_TO_CMS)
 # a = A_CONST * gamma[s^-1] * lambda_rest[Angstrom] / b[km/s]
 
 

@@ -10,6 +10,11 @@ in cm^-2 (log10 N in outputs).
 from dataclasses import dataclass, field
 
 import numpy as np
+from scipy import constants as _const
+
+C_KMS = _const.c * 1e-3  # speed of light, km/s
+ANGSTROM_TO_CM = 1e-8
+KMS_TO_CMS = 1e5
 
 
 @dataclass
