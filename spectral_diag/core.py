@@ -16,33 +16,78 @@ import numpy as np
 class Spectrum:
     """An observed or synthetic spectrum.
 
-    wave, flux, error are 1D arrays of equal length. continuum is the
-    fitted/normalised continuum level, filled in by `continuum`
-    once available.
+    Attributes
+    ----------
+    wave : array
+        Observed wavelength grid, Angstrom (vacuum).
+    flux : array
+        Flux at each wavelength, same length as `wave`.
+    error : array
+        1-sigma flux uncertainty per pixel, same units as `flux`.
+    continuum : array, optional
+        Continuum level at each wavelength, filled in by `continuum`.
     """
 
-    wave: np.ndarray  # Angstrom
+    wave: np.ndarray
     flux: np.ndarray
     error: np.ndarray
     continuum: np.ndarray | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class Line:
-    """A single atomic transition from the line list."""
+    """A single atomic transition from the line list (immutable).
 
-    species: str  # e.g. "HI", "CIV"
-    wave_rest: float  # Angstrom
-    f: float  # oscillator strength
-    gamma: float  # damping constant, s^-1
+    Attributes
+    ----------
+    species : str
+        Species name, e.g. "HI", "CIV".
+    wave_rest : float
+        Rest wavelength in vacuum, Angstrom. Air-calibrated spectra must
+        be converted to vacuum on loading.
+    f : float
+        Absorption oscillator strength f_lu.
+    gamma : float
+        Total damping constant of the upper level, s^-1.
+    name : str, optional
+        Unique label used to match EWs to lines and in plots. Defaults
+        to species + truncated wave_rest, e.g. "CIV 1548".
+    """
+
+    species: str
+    wave_rest: float
+    f: float
+    gamma: float
+    name: str | None = None
+
+    # TODO: g_lower, g_upper and a derived A_ul property (radio demo).
+    # TODO: atomic mass, to split b into thermal and turbulent parts.
+
+    def __post_init__(self):
+        if self.name is None:
+            object.__setattr__(self, "name", f"{self.species} {int(self.wave_rest)}")
 
 
 @dataclass
 class Absorber:
-    """A fitted or injected absorption system for one species."""
+    """A fitted or injected absorption system for one species.
+
+    Attributes
+    ----------
+    species : str
+        Species name, e.g. "HI", "CIV".
+    z : float
+        Redshift of the absorber.
+    logN : float
+        log10(column density / cm^-2).
+    b : float
+        Doppler (velocity dispersion) parameter, km/s.
+    lines : list of Line
+        Transitions of this species used to model or fit the absorber.
+    """
 
     species: str
     z: float
-    logN: float  # log10(N / cm^-2)
-    b: float  # km/s
+    logN: float
+    b: float
     lines: list[Line] = field(default_factory=list)
