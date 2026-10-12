@@ -19,6 +19,7 @@ A numerical tool to automatically identify lines in a spectrum, measure their eq
 ```
 spectral_diag/   Python package (io, continuum, linelist, detect, ew, profiles, cog, uncertainty, viz)
 notebooks/       Demonstrations and validation
+figures/         Reference and illustration images used by the notebooks
 data/            Small example spectra
 Projects.pdf     Project statement
 ```
