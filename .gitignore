@@ -47,6 +47,8 @@ Projects.pdf
 # Personal working notes (not shared with the team)
 NOTES_perso.tex
 NOTES_perso.pdf
+REFERENCE_perso.tex
+REFERENCE_perso.pdf
 #NOTES_perso_*.png
 
 # LaTeX build byproducts
