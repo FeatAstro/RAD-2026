@@ -7,52 +7,51 @@
 \pagestyle{empty}
 \setlength{\parindent}{0pt}\setlength{\parskip}{4pt}
 \begin{document}
-{\Large\bfseries Spectral line diagnostics -- proposed work split}\hfill{\small M2 IRT, MC ``Radiation'' 2026--27}
+{\Large\bfseries Spectral line diagnostics -- work split}\hfill{\small M2 IRT, MC ``Radiation'' 2026--27}
 
-\textbf{Goal.} Tool that (1) identifies lines in a spectrum, (2) measures equivalent widths above the continuum, (3) uses curves of growth to derive $z$, $N$, $b$ per species. \textbf{Check-ins:} Oct 14, Nov 18. \textbf{Oral:} Dec 9 (50\% of grade, may be individual).
+\textbf{Goal.} Tool that starts from a real spectrum, (1) fits the continuum, (2) finds and identifies the lines, (3) characterises them and derives the physical conditions of the gas. \textbf{Check-ins:} Oct 14, Nov 18. \textbf{Oral:} Dec 9 (50\% of grade, may be individual).
 
-\textbf{Scope.} Python; main target UV/optical quasar absorption spectra (Voigt profiles, HI + metals); code kept generic for a second-domain demo (e.g.\ 21\,cm) at the end.
+\textbf{Scope (updated after check-in 1, Oct 14).} Optical emission-line spectra of \emph{planetary nebulae}. Main target: NGC 7662 (HST/STIS G430L + G750L, MAST programme 12600, slit on the nebula); second target: NGC 7027 (programme 8285, richest red spectrum). The absorption work done before check-in 1 (Voigt profiles, equivalent widths, curves of growth, $(N,b)$ fit, all validated on synthetic spectra) is kept as a separate module.
 
 \begin{tabular}{@{}p{8.2cm}@{\hspace{0.4cm}}p{8.2cm}@{}}
 \toprule
 \textbf{A -- data $\to$ lines} & \textbf{B -- lines $\to$ physics}\\
 \midrule
 \begin{itemize}
-\item Load spectra (FITS/ASCII), archive queries
-\item Continuum fit and normalisation
-\item Atomic line list ($\lambda$, $f$, $\Gamma$)
-\item Line detection and redshift identification
+\item MAST download; 1D extraction from the 2D STIS image (sum the nebular rows, propagate errors)
+\item Continuum fit and subtraction (sigma-clipping that rejects emission lines)
+\item Nebular line list (H, He recombination lines; forbidden lines of O, N, S, Ne, Ar; air vs vacuum wavelengths)
+\item Line detection and identification against the line list (radial velocity from the matched lines)
 \item Interactive visualisation
 \end{itemize}
 &
 \begin{itemize}
-\item Voigt profile, optical depth $\tau(\lambda;N,b,z)$, LSF
-\item Equivalent widths with error propagation
-\item Theoretical curves of growth; multi-line fit of $N$, $b$
-\item Uncertainties ($\chi^2$ grid / MCMC / bootstrap)
+\item Gaussian line profiles including the instrumental resolution; multi-line fits of blends (H$\alpha$ + [N\,\textsc{ii}], H$\gamma$ + [O\,\textsc{iii}]\,4363)
+\item Line fluxes with error propagation (noise and continuum)
+\item Reddening from the Balmer decrement; dereddened fluxes
+\item Electron temperature ([O\,\textsc{iii}], [N\,\textsc{ii}]), electron density ([S\,\textsc{ii}], [O\,\textsc{ii}]), ionic abundances
+\item Uncertainties (Monte Carlo)
 \end{itemize}\\
 \bottomrule
 \end{tabular}
 
-\textbf{Interface.} A outputs a normalised spectrum (flux, error) plus a line table per absorber: species, $\lambda_\text{rest}$, $f$, $z_\text{guess}$, window. B only needs this. Shared Python classes \texttt{Spectrum}, \texttt{Line}, \texttt{Absorber}, agreed in week 1.
+\textbf{Interface.} A outputs a \texttt{Spectrum} (flux, error, continuum) plus a line table: name, $\lambda_\text{rest}$, observed centre guess, fitting window. B only needs this and returns a table of line fluxes and the derived physical quantities.
 
-\textbf{Avoiding the dependency.} At first B works on \emph{synthetic spectra} (known $z,N,b$, so the truth is known) with a hand-made line table. A's automatic identification later produces the same table; B's code does not change. Fallback: identify lines by hand in one real spectrum.
+\textbf{Avoiding the dependency.} B first works on \emph{synthetic emission spectra} (known line fluxes on a known continuum) and on a hand-made line table for NGC 7662. A's automatic identification later produces the same table; B's code does not change.
 
-\textbf{Shared work.} Repo and interfaces; synthetic spectrum generator (early); validation (inject known $z,N,b$, check recovery in linear, saturated and damped regimes; COG limits $W\propto N$ and $W\propto\sqrt N$); report and slides (each presents own half).
+\textbf{Shared work.} Repo and interfaces; synthetic spectrum generator; validation (inject known fluxes, check recovery; compare our temperatures and densities with PyNeb and with published values for the same nebulae); report and slides (each presents own half).
 
-\textbf{Timeline.}
-\begin{tabular}{@{}p{2.6cm}p{13.8cm}@{}}
+\textbf{Timeline.}\par
+\begin{tabular}{@{}p{2.5cm}p{14.2cm}@{}}
 \toprule
-Until Oct 14 & Repo, interfaces, synthetic generator; profiles/COG; continuum + EW on synthetic data. Demo end-to-end on synthetic spectra.\\
-Oct 14 -- Nov 18 & Real spectra, line-list queries, automatic identification, multi-line COG fit, first uncertainties.\\
-Nov 18 -- Dec 8 & MCMC/error budget, interactive viz, second-domain demo, validation vs.\ literature, slides and rehearsal.\\
+Until Oct 14 & Repo, interfaces, synthetic generator; absorption chain (profiles, EW, COG) validated on synthetic spectra. MAST search for planetary nebula spectra.\\
+Oct 14 -- Nov 18 & A: extraction of NGC 7662, continuum, line list, detection and identification. B: Gaussian fits, fluxes, reddening, electron temperature. Demo on the real spectrum.\\
+Nov 18 -- Dec 8 & Electron density, abundances, uncertainties, NGC 7027 as second object, interactive viz, comparison with the literature, slides and rehearsal.\\
 Dec 9 & Oral presentation.\\
 \bottomrule
 \end{tabular}
 
-\textbf{Working habits.} Shared git repo; 15--20 min weekly sync; integrate A's output into B's fitter every 1--2 weeks; review each other's code so both understand the full pipeline.
+\textbf{Working habits.} Shared git repo, personal branches merged into \texttt{main} by reviewed pull requests; 15--20 min weekly sync; integrate A's output into B's fits every 1--2 weeks; review each other's code so both understand the full pipeline.
 
-\textbf{To decide together.} Which side each of us takes; which real spectrum/dataset; Python for both; first meeting to fix the data classes.
-
-\textbf{Status (see README progress log for details).} Repo scaffolded: \texttt{spectral\_diag/} package with \texttt{Spectrum}, \texttt{Line}, \texttt{Absorber} classes and one stub module per planned component; \texttt{pyproject.toml} for \texttt{pip install -e .}. First real code: \texttt{profiles.optical\_depth\_gaussian} (Doppler-only optical depth, no damping wings yet) with a validation notebook (\texttt{notebooks/01\_gaussian\_optical\_depth.ipynb}) showing line saturation vs.\ N and broadening vs.\ b. Next: full Voigt profile (add the Gamma/damping term via \texttt{scipy.special.wofz}).
+\textbf{Status (see README progress log for details).} Done: \texttt{core} data classes, \texttt{profiles} (Gaussian and Voigt optical depth), \texttt{ew}, \texttt{io.make\_synthetic}, \texttt{linelist} (CIV, SiII, FeII), \texttt{cog}, with validation notebooks 00--04. Candidate planetary nebula spectra found in MAST; the pipeline 1D products are too noisy for an extended nebula, so we extract our own. Next: \texttt{io} reader and extraction for STIS \texttt{\_sx2} files, then \texttt{continuum}.
 \end{document}

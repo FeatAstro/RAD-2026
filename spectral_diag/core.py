@@ -31,12 +31,22 @@ class Spectrum:
         1-sigma flux uncertainty per pixel, same units as `flux`.
     continuum : array, optional
         Continuum level at each wavelength, filled in by `continuum`.
+    meta : dict
+        Free-form metadata, filled in by the readers in `io`. Keys
+        used so far (all optional):
+        instrument, source, obs_id -- provenance;
+        ra, dec (deg), mjd, exptime (s) -- observation;
+        wave_frame, flux_unit -- conventions;
+        fwhm_kms, R -- instrumental resolution;
+        snr -- median signal-to-noise;
+        absorbers -- injected truth (synthetic spectra).
     """
 
     wave: np.ndarray
     flux: np.ndarray
     error: np.ndarray
     continuum: np.ndarray | None = None
+    meta: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

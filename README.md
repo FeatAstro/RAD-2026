@@ -2,22 +2,50 @@
 
 Group project for the M2 IRT course "Radiation" (MC, 2026-2027).
 
-A numerical tool to automatically identify lines in a spectrum, measure their equivalent widths above the continuum, and use theoretical curves of growth to estimate the redshift, column density and velocity dispersion of the absorbing gas species.
+A numerical tool that starts from a real spectrum, fits the underlying
+continuum, finds the lines and characterises them. Following the
+feedback at check-in 1 (Oct 14), the main target is the optical
+emission-line spectrum of a **planetary nebula**: line fluxes and line
+ratios give the dust reddening, electron temperature, electron density
+and ionic abundances of the nebula.
 
 ## Planned features
-- Load spectra from files or archive queries (FITS/ASCII), plus a synthetic spectrum generator for testing
-- Continuum fitting and normalisation
-- Line lists from atomic databases (wavelength, oscillator strength, damping constant)
-- Automatic line detection and identification by redshift matching
-- Equivalent width measurement with uncertainties
-- Voigt line profiles and theoretical curves of growth
-- Fit of (z, N, b) per species, with uncertainties (χ² grid / MCMC)
+- Load real spectra (HST/STIS from the MAST archive), including our own
+  extraction of a 1D spectrum from the 2D long-slit image
+- Continuum fitting with sigma-clipping that rejects emission lines
+- Line list of nebular lines (H and He recombination lines, forbidden
+  lines of O, N, S, Ne, Ar)
+- Automatic line detection and identification against the line list
+- Gaussian line fitting (including blends such as Halpha + [NII]) and
+  line fluxes with uncertainties
+- Diagnostics: reddening from the Balmer decrement, electron temperature
+  from [OIII] and [NII], electron density from [SII] and [OII], ionic
+  abundances
+- Uncertainty estimation (Monte Carlo on the noise and the continuum)
 - Interactive visualisation of the spectrum and fitted lines
-- Main target: UV/optical quasar absorption spectra; designed to extend to other domains (UV to radio)
+- Already done for absorption spectra (kept as a validated module):
+  Voigt profiles, equivalent widths, theoretical curves of growth and
+  the (N, b) fit
+
+## Data
+Candidate spectra found in MAST (HST/STIS CCD long slit, G430L +
+G750L, together about 2900-10200 A at a few A per pixel):
+- **NGC 7662**, programme 12600, slit offset onto the nebula (no central
+  star in the slit). Best blue side: [OIII] 4363 separated from Hgamma,
+  [NeIII] 3869, HeII 4686, the Balmer series. Main target.
+- **NGC 7027**, programme 8285. Richest red side (Halpha + [NII],
+  [NII] 5755, [OI], [SII], [ArIII], [OII] 7320/7330, [SIII] 9069/9532),
+  but heavily reddened and noisy in the blue. Second target.
+- NGC 3242, programme 12600, similar to NGC 7662.
+
+The pipeline 1D products (`_sx1`) extract only 7 pixels along the slit
+and are very noisy for an extended nebula; summing the nebular rows of
+the 2D rectified image (`_sx2`) gives a much better spectrum (quick
+look: `figures/pn_candidates_mast.png`).
 
 ## Layout
 ```
-spectral_diag/   Python package (io, continuum, linelist, detect, ew, profiles, cog, uncertainty, viz)
+spectral_diag/   Python package (io, continuum, linelist, detect, ew, profiles, cog, uncertainty, viz; diagnostics planned)
 notebooks/       Demonstrations and validation
 figures/         Reference and illustration images used by the notebooks
 data/            Small example spectra
@@ -25,8 +53,9 @@ Projects.pdf     Project statement
 ```
 Current structure: `spectral_diag/` has the package skeleton (shared
 `Spectrum`/`Line`/`Absorber` classes in `core.py`, one stub module per
-planned component). `profiles.py` has the Gaussian (Doppler-only) and
-full Voigt optical depth implemented (see Progress log below).
+planned component). Implemented so far: `profiles` (Gaussian and Voigt
+optical depth), `ew`, `io.make_synthetic`, `linelist` (CIV, SiII, FeII)
+and `cog` (see Progress log below).
 
 ## Installation
 ```bash
@@ -47,13 +76,17 @@ To be written once the first end-to-end pipeline runs.
 ## Timeline
 | Date | Milestone |
 |---|---|
-| Oct 14 | Check-in 1: end-to-end pipeline on synthetic spectra (profiles, COG, continuum, EW) |
-| Nov 18 | Check-in 2: real spectra, line identification, multi-line COG fits |
+| Oct 14 | Check-in 1: absorption chain validated on synthetic spectra (profiles, EW, COG). New target: planetary nebulae |
+| Nov 18 | Check-in 2: real PN spectrum extracted, continuum fitted, lines detected, identified and fitted; reddening and electron temperature |
 | Dec 9 | Oral presentation (50% of the course grade) |
 
 ## Team
-- Student A: data side (I/O, continuum, line lists, detection, visualisation)
-- Student B: physics side (profiles, EW, COG, fitting, uncertainties)
+See `Work_split.pdf` for the details.
+- Student A: data to lines (MAST download and 1D extraction, continuum,
+  line list, detection and identification, visualisation)
+- Student B: lines to physics (line profiles and fits, fluxes and
+  errors, reddening, temperature and density diagnostics, abundances,
+  uncertainties)
 
 ## Progress log
 - Package skeleton (`spectral_diag/`), shared `Spectrum`/`Line`/`Absorber`
@@ -128,6 +161,34 @@ To be written once the first end-to-end pipeline runs.
   re-embedded in each -- avoids duplicating ~400KB of images per
   notebook. Going forward, notebooks are organized by validation
   theme rather than 1:1 per function.
-- Next: continuum fitting (`continuum.py`) and the theoretical curve
-  of growth (`cog.py`), to close the loop toward fitting (z, N, b)
-  from measured EWs across linear, saturated and damped regimes.
+- `linelist.py`: `get_lines(species)` returns the tabulated lines of
+  CIV (2), SiII (6) or FeII (7) as `Line` objects. Wavelengths and f
+  are from Verner, Verner & Ferland 1996 (arXiv:atom-ph/9604003);
+  gamma is the sum of the tabulated A values over the listed decays of
+  the upper level.
+- `cog.py`: `theoretical_ew(line, logN, b, z=0.0)` integrates
+  `1 - exp(-tau)` over the Voigt profile in the variable `x = dv/b`,
+  so it is valid in all three regimes. `fit_cog(lines, ews, z=0.0)`
+  fits (logN, b) by weighted least squares to measured EWs given as a
+  dictionary `{line.name: (W, W_err)}`, starting from the best points
+  of a coarse grid, and returns the best fit, 1-sigma errors,
+  covariance and chi2. Single cloud, no instrumental broadening.
+- `notebooks/04_curve_of_growth.ipynb` validates both:
+  `theoretical_ew` matches the linear and damped closed forms to
+  better than 1e-4; injected (logN, b) are recovered from noise-free
+  synthetic FeII spectra to 0.01 dex, and from a damped SiII case when
+  the EW window is wide enough (a +-20 A window biases logN by -0.03
+  dex); over 100 noisy spectra at S/N = 50 the fit is unbiased and the
+  scatter matches the reported errors (0.019 dex in logN, 0.10 km/s in
+  b). It also shows the N-b degeneracy: with only the three strongest
+  FeII lines, logN is uncertain by 1.8 dex at 68% for a 0.02 A EW
+  error, against 0.13 dex with all seven lines.
+- Check-in 1 (Oct 14): the teachers asked us to start from a real
+  spectrum and to focus on planetary nebulae, so on emission lines. The
+  curve of growth does not apply to these (the forbidden lines are
+  optically thin, so the flux is simply proportional to the number of
+  emitting ions); the absorption code above stays as a validated module.
+  Searched MAST for bright nebulae with HST/STIS spectra and selected
+  NGC 7662 and NGC 7027 (see Data above).
+- Next: `io` reader for STIS `_sx2` files with extraction along the
+  slit, then `continuum.py` for an emission-line spectrum.
