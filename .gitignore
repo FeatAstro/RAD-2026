@@ -41,6 +41,10 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
+# Data files (re-downloadable, e.g. with io.download_mast_spectra)
+data/*
+!data/.gitkeep
+
 # Teachers' material (not ours to redistribute)
 Projects.pdf
 docs/
@@ -50,6 +54,7 @@ NOTES_perso.tex
 NOTES_perso.pdf
 REFERENCE_perso.tex
 REFERENCE_perso.pdf
+Notes.md
 #NOTES_perso_*.png
 
 # LaTeX build byproducts
