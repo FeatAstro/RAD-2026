@@ -1,7 +1,7 @@
 [project]
 name = "spectral_diag"
 version = "0.1.0"
-description = "Spectral line diagnostics for quasar absorption spectra"
+description = "Spectral line diagnostics for quasar and stellar absorption spectra"
 requires-python = ">=3.11"
 dependencies = [
     "numpy",
@@ -25,3 +25,6 @@ packages = ["spectral_diag"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.black]
+line-length = 88

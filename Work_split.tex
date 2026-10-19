@@ -9,49 +9,59 @@
 \begin{document}
 {\Large\bfseries Spectral line diagnostics -- work split}\hfill{\small M2 IRT, MC ``Radiation'' 2026--27}
 
-\textbf{Goal.} Tool that starts from a real spectrum, (1) fits the continuum, (2) finds and identifies the lines, (3) characterises them and derives the physical conditions of the gas. \textbf{Check-ins:} Oct 14, Nov 18. \textbf{Oral:} Dec 9 (50\% of grade, may be individual).
+\textbf{Goal.} Tool that starts from a real spectrum, (1) fits and removes the continuum, (2) detects and identifies the lines, (3) measures them and derives the physical properties of the absorbing gas. \textbf{Check-ins:} Oct 14, Nov 18. \textbf{Oral:} Dec 9 (50\% of grade, may be individual).
 
-\textbf{Scope (updated after check-in 1, Oct 14).} Optical emission-line spectra of \emph{planetary nebulae}. Main target: NGC 7662 (HST/STIS G430L + G750L, MAST programme 12600, slit on the nebula); second target: NGC 7027 (programme 8285, richest red spectrum). The absorption work done before check-in 1 (Voigt profiles, equivalent widths, curves of growth, $(N,b)$ fit, all validated on synthetic spectra) is kept as a separate module.
+\textbf{Scope (after check-in 1, Oct 14).} \emph{Absorption lines}, first in the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (3810--9210\,\AA, $R\approx2000$, S/N $\approx60$). Detection keeps a sign option so emission spectra (planetary nebulae, suggested by the teachers) can be added later.
+
+\textbf{Pipeline and status.}\par
+\begin{tabular}{@{}p{5.2cm}p{7.3cm}p{4cm}@{}}
+\toprule
+Step & Module & Status \\
+\midrule
+1. Read the spectrum & \texttt{io} (MAST query/download, SDSS reader) & done (Pablo) \\
+2. Fit and remove the continuum & \texttt{continuum.fit\_continuum}, \texttt{normalise} & done (Gaël) \\
+3. Detect the significant dips & \texttt{detect.find\_features} & \textbf{to do -- Pablo} \\
+4. Identify them (comb per species) & \texttt{linelist}, \texttt{detect.identify} & \textbf{to do -- Gaël} \\
+5. Equivalent widths & \texttt{ew.measure\_ew} & done; continuum error to add \\
+6. Curve of growth: $N$, $b$ per species & \texttt{cog.fit\_cog} & done (on synthetic data) \\
+\bottomrule
+\end{tabular}
+
+\textbf{Identification by a comb.} A shift multiplies all wavelengths by the same factor, $\lambda_{\rm obs}=\lambda_{\rm rest}(1+z)$, so the \emph{ratios} of the wavelengths of one species are fixed. Each species is a comb of rest wavelengths; we slide it over the detected features (trial velocity $v$, $-600$ to $+600$\,km/s for a star) and count the teeth that hit a feature. Hydrogen's comb comes from the Rydberg formula, $1/\lambda = R_H(1/n_{\rm low}^2-1/n_{\rm up}^2)$; other species from a table (NIST). Strength ratios reject chance matches: a strong line predicted but missing excludes the species; doublets (CaII H\&K, NaD) must have EW ratios between 2:1 (weak) and 1:1 (saturated). Telluric O$_2$/H$_2$O bands are one more ``species''.
 
 \begin{tabular}{@{}p{8.2cm}@{\hspace{0.4cm}}p{8.2cm}@{}}
 \toprule
-\textbf{A -- data $\to$ lines} & \textbf{B -- lines $\to$ physics}\\
+\textbf{Pablo -- data $\to$ features} & \textbf{Gaël -- features $\to$ physics}\\
 \midrule
 \begin{itemize}
-\item MAST download; 1D extraction from the 2D STIS image (sum the nebular rows, propagate errors)
-\item Continuum fit and subtraction (sigma-clipping that rejects emission lines)
-\item Nebular line list (H, He recombination lines; forbidden lines of O, N, S, Ne, Ar; air vs vacuum wavelengths)
-\item Line detection and identification against the line list (radial velocity from the matched lines)
-\item Interactive visualisation
+\item \texttt{detect.find\_features}: significance of the absorption in a window of about one resolution element (or a matched Gaussian filter), threshold 4--5$\sigma$
+\item Merge neighbouring detections (a Balmer line with its wings = one feature); window, centre and its error, depth, EW
+\item Plot of the detected features on the spectrum
+\item Telluric band masks; later NIST queries for the line list
+\item Tests: synthetic spectra with known line positions (pytest)
 \end{itemize}
 &
 \begin{itemize}
-\item Gaussian line profiles including the instrumental resolution; multi-line fits of blends (H$\alpha$ + [N\,\textsc{ii}], H$\gamma$ + [O\,\textsc{iii}]\,4363)
-\item Line fluxes with error propagation (noise and continuum)
-\item Reddening from the Balmer decrement; dereddened fluxes
-\item Electron temperature ([O\,\textsc{iii}], [N\,\textsc{ii}]), electron density ([S\,\textsc{ii}], [O\,\textsc{ii}]), ionic abundances
-\item Uncertainties (Monte Carlo)
+\item \texttt{linelist}: hydrogen comb from the Rydberg formula (\texttt{scipy.constants}); table of common species (CaII, MgII, NaI, OI, HeI, FeII) with $\lambda_{\rm vac}$, $f$, lower-level energy
+\item \texttt{detect.identify}: comb scan, scoring weighted by expected strength, strength-ratio checks
+\item Continuum error in \texttt{measure\_ew}
+\item Curve of growth on the identified lines
+\item Tests: a hand-written features table of the star
 \end{itemize}\\
 \bottomrule
 \end{tabular}
 
-\textbf{Interface.} A outputs a \texttt{Spectrum} (flux, error, continuum) plus a line table: name, $\lambda_\text{rest}$, observed centre guess, fitting window. B only needs this and returns a table of line fluxes and the derived physical quantities.
-
-\textbf{Avoiding the dependency.} B first works on \emph{synthetic emission spectra} (known line fluxes on a known continuum) and on a hand-made line table for NGC 7662. A's automatic identification later produces the same table; B's code does not change.
-
-\textbf{Shared work.} Repo and interfaces; synthetic spectrum generator; validation (inject known fluxes, check recovery; compare our temperatures and densities with PyNeb and with published values for the same nebulae); report and slides (each presents own half).
+\textbf{Interface: the features table} (full description in \texttt{spectral\_diag/detect.py}). \texttt{find\_features(spectrum, threshold=4.0, sign=-1)} returns an astropy \texttt{Table}, one row per feature, columns \texttt{wave}, \texttt{wave\_err}, \texttt{wave\_min}, \texttt{wave\_max} (\AA, vacuum), \texttt{depth}, \texttt{ew}, \texttt{ew\_err} (\AA), \texttt{snr}. \texttt{identify} adds \texttt{species}, \texttt{line}, \texttt{wave\_rest}, \texttt{v} (km/s). Each side can be written and tested without the other.
 
 \textbf{Timeline.}\par
 \begin{tabular}{@{}p{2.5cm}p{14.2cm}@{}}
 \toprule
-Until Oct 14 & Repo, interfaces, synthetic generator; absorption chain (profiles, EW, COG) validated on synthetic spectra. MAST search for planetary nebula spectra.\\
-Oct 14 -- Nov 18 & A: extraction of NGC 7662, continuum, line list, detection and identification. B: Gaussian fits, fluxes, reddening, electron temperature. Demo on the real spectrum.\\
-Nov 18 -- Dec 8 & Electron density, abundances, uncertainties, NGC 7027 as second object, interactive viz, comparison with the literature, slides and rehearsal.\\
+Until Oct 14 & Repo, data classes, synthetic generator; profiles, EW, curve of growth validated on synthetic spectra.\\
+Oct 14 -- Nov 18 & Real star: reading (done), continuum (done), detection (Pablo), line list and comb identification (Gaël), EWs with continuum error, curve of growth for CaII / Balmer. Demo of the full chain.\\
+Nov 18 -- Dec 8 & Comb on a synthetic spectrum at unknown $z$; uncertainties; interactive viz; optional emission-line extension (planetary nebula); slides and rehearsal.\\
 Dec 9 & Oral presentation.\\
 \bottomrule
 \end{tabular}
 
-\textbf{Working habits.} Shared git repo, personal branches merged into \texttt{main} by reviewed pull requests; 15--20 min weekly sync; integrate A's output into B's fits every 1--2 weeks; review each other's code so both understand the full pipeline.
-
-\textbf{Status (see README progress log for details).} Done: \texttt{core} data classes, \texttt{profiles} (Gaussian and Voigt optical depth), \texttt{ew}, \texttt{io.make\_synthetic}, \texttt{linelist} (CIV, SiII, FeII), \texttt{cog}, with validation notebooks 00--04. Candidate planetary nebula spectra found in MAST; the pipeline 1D products are too noisy for an extended nebula, so we extract our own. Next: \texttt{io} reader and extraction for STIS \texttt{\_sx2} files, then \texttt{continuum}.
+\textbf{Working habits.} Shared git repo, personal branches (\texttt{gael}, \texttt{pablo}) merged into \texttt{main} by reviewed pull requests; synthetic checks in \texttt{tests/} (run \texttt{pytest}), real-data notebooks in \texttt{notebooks/}; spectra in \texttt{data/} are not committed (re-download with \texttt{notebooks/MAST\_query.ipynb}); weekly sync; review each other's code so both understand the full pipeline.
 \end{document}
