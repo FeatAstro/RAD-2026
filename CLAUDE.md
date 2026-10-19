@@ -15,7 +15,7 @@ Possible developments listed by the teachers: spectra database queries, continuu
 - Oral presentation: **Dec 9** (50% of final grade, may be individualised per student)
 
 ## Scope decision
-Main target: UV/optical absorption spectra of quasar absorbers (Voigt profiles, HI + metal lines). Keep the code generic enough to demo a second domain (e.g. 21 cm or stellar) at the end.
+Main targets: UV/optical absorption spectra of quasar absorbers and of stars (Voigt profiles, HI + metal lines). Continuum and line fitting are done on the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (`data/mast/spec-lite-2182-53905-0101.fits`). Keep the code generic enough to demo a second domain (e.g. 21 cm) at the end.
 
 ## Stack and layout
 Python (numpy, scipy, astropy, astroquery, matplotlib; optional lmfit/emcee). Virtualenv in `.venv/` (ignored by git). Package in `spectral_diag/`, notebooks in `notebooks/`, data in `data/` (small files only).
@@ -34,7 +34,7 @@ Planned modules in `spectral_diag/`:
 Shared data structures (`Spectrum`, `Line`, `Absorber`) are agreed on early so the two students can work in parallel.
 
 ## Conventions
-- Validate everything on synthetic spectra with known (z, N, b) before real data; recover injected parameters across linear, saturated and damped regimes.
+- Base the analysis on real observed spectra (teachers' guidance), not on synthetic ones.
 - Sanity checks for COG: linear regime W ∝ N, damped regime W ∝ √N.
 - Units: wavelengths in Å (state explicitly), velocities in km/s, N in cm^-2 (log10 in outputs). Use astropy units where practical.
 - Do not commit large data files or the teachers' PDFs; do not commit or push unless asked.
