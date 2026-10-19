@@ -40,3 +40,11 @@ Shared data structures (`Spectrum`, `Line`, `Absorber`) are agreed on early so t
 - Do not commit large data files or the teachers' PDFs; do not commit or push unless asked.
 - Course material (lectures, tutorials) lives one level up in `../`; theory reference for curves of growth is in the Lecture 1 summaries there.
 - Formatting: black, line length 88 (configured in `pyproject.toml`).
+
+## Clean code
+Apply on every write or review. Flag violations explicitly and propose the refactor rather than fixing silently.
+- Naming: descriptive names that read like English, following PEP 8. Single letters are allowed only for loop indices and for standard physics symbols that match the equations (N, b, z, tau, lam). Replace magic numbers with named constants. No type prefixes.
+- Functions: at most ~20 lines, one job each, doing exactly what the name says. Arguments: the fewer the better (0 ideal, 1 fine, 2 suspicious); with 3+, strongly consider grouping them into a dataclass (`Spectrum`, `Line`, `Absorber`, ...), but it is a recommendation, not a hard limit. No hidden side effects: any mutation outside the function must be visible in its name or signature.
+- Abstraction: don't mix low-level details (indices, array bookkeeping) with high-level logic in the same function. Design the call-site interface first, then delegate internals to helpers.
+- Comments: if a block needs a comment saying WHAT it does, extract it into a well-named function. Comments explain only WHY (intent, assumptions, references). Put comments on the line before the code, never at the end of the line. Every function and class has a NumPy-style docstring.
+- Strategy: make it work, then clean, then fast. Don't optimize without measuring first.
