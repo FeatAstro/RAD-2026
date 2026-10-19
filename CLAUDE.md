@@ -15,7 +15,7 @@ Possible developments listed by the teachers: spectra database queries, continuu
 - Oral presentation: **Dec 9** (50% of final grade, may be individualised per student)
 
 ## Scope decision
-Main targets: UV/optical absorption spectra of quasar absorbers and of stars (Voigt profiles, HI + metal lines). Continuum and line fitting are done on the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (`data/mast/spec-lite-2182-53905-0101.fits`). Keep the code generic enough to demo a second domain (e.g. 21 cm) at the end.
+Updated after check-in 1 (Oct 14): start from a real spectrum, fit and remove the continuum, then detect, identify and characterise the lines. Absorption lines first, on the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (`data/mast/spec-lite-2182-53905-0101.fits`); quasar absorbers (Voigt profiles, HI + metal lines) remain a target. Identification by a "comb" per species (fixed wavelength ratios, Rydberg formula for H) checked by line-strength ratios; curve of growth for species with several lines. Keep detection generic (sign option) so emission spectra such as planetary nebulae can be added later, and the code generic enough to demo a second domain (e.g. 21 cm). Work split and the detect/identify interface: `Work_split.tex` and `spectral_diag/detect.py`.
 
 ## Stack and layout
 Python (numpy, scipy, astropy, astroquery, matplotlib; optional lmfit/emcee). Virtualenv in `.venv/` (ignored by git). Package in `spectral_diag/`, notebooks in `notebooks/`, data in `data/` (small files only).
