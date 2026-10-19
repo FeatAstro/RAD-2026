@@ -39,3 +39,4 @@ Shared data structures (`Spectrum`, `Line`, `Absorber`) are agreed on early so t
 - Units: wavelengths in Å (state explicitly), velocities in km/s, N in cm^-2 (log10 in outputs). Use astropy units where practical.
 - Do not commit large data files or the teachers' PDFs; do not commit or push unless asked.
 - Course material (lectures, tutorials) lives one level up in `../`; theory reference for curves of growth is in the Lecture 1 summaries there.
+- Formatting: black, line length 88 (configured in `pyproject.toml`).
