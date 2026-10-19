@@ -21,71 +21,76 @@ from astroquery.mast import Observations
 from .core import C_KMS, Spectrum
 from .profiles import optical_depth
 
+BYTES_PER_MB = 1e6
+FWHM_PER_SIGMA = 2 * np.sqrt(2 * np.log(2))
+# SDSS pixels are uniform in log10(lambda), 1e-4 dex wide
+SDSS_PIXEL_DEX = 1e-4
+SDSS_FLUX_UNIT = "1e-17 erg s^-1 cm^-2 Angstrom^-1"
+
 
 def make_synthetic(wave, absorbers, continuum=1.0, snr=None, rng=None):
     """Build a synthetic Spectrum with injected absorbers at known (z, N, b).
 
-    Combines every line of every absorber into a single optical depth
-    (summing tau is exact, not an approximation -- each species/line
-    independently attenuates the same beam, so transmissions multiply
-    and optical depths add: exp(-tau1)*exp(-tau2) = exp(-(tau1+tau2))).
-
-    No instrumental LSF is applied yet (`profiles.apply_lsf` doesn't
-    exist yet) -- this is the intrinsic model spectrum, not a
-    realistic stand-in for a specific instrument's resolution.
+    No instrumental LSF is applied: this is the intrinsic model spectrum.
 
     Parameters
     ----------
     wave : array
         Wavelength grid, Angstrom.
     absorbers : list of Absorber
-        Each absorber's `lines` are summed into the total optical
-        depth, using that absorber's logN, b, z.
+        Every line of every absorber is added to the optical depth.
     continuum : float or array
-        Continuum level, broadcastable to `wave`. No continuum shape
-        model beyond this (see `continuum.py`).
+        Continuum level, broadcastable to `wave`.
     snr : float, optional
-        Target signal-to-noise ratio relative to the continuum. If
-        None (default), returns a noise-free spectrum with
-        error = 0 -- useful for checking against closed-form truth
-        before testing against noise.
+        Signal-to-noise ratio relative to the continuum. None (default):
+        noise-free spectrum with error = 0.
     rng : numpy.random.Generator, optional
-        For reproducible noise. Defaults to a fresh unseeded
-        Generator.
+        For reproducible noise. Defaults to a fresh unseeded Generator.
 
     Returns
     -------
     spectrum : Spectrum
+        `meta["absorbers"]` holds the injected truth.
     """
     wave = np.asarray(wave, dtype=float)
-    continuum_arr = np.broadcast_to(continuum, wave.shape).astype(float)
-
-    tau_total = np.zeros_like(wave)
-    for absorber in absorbers:
-        for line in absorber.lines:
-            tau_total += optical_depth(
-                wave, line, logN=absorber.logN, b=absorber.b, z=absorber.z
-            )
-
-    flux_clean = continuum_arr * np.exp(-tau_total)
-    # Injected truth, to compare against recovered parameters
-    meta = {"instrument": "synthetic", "absorbers": list(absorbers), "snr": snr}
+    continuum = np.broadcast_to(continuum, wave.shape).astype(float)
+    flux = continuum * np.exp(-_total_optical_depth(wave, absorbers))
 
     if snr is None:
-        return Spectrum(
-            wave=wave,
-            flux=flux_clean,
-            error=np.zeros_like(wave),
-            continuum=continuum_arr,
-            meta=meta,
-        )
+        error = np.zeros_like(wave)
+    else:
+        error = continuum / snr
+        rng = rng if rng is not None else np.random.default_rng()
+        flux = flux + rng.normal(0, error)
 
-    rng = rng if rng is not None else np.random.default_rng()
-    sigma = continuum_arr / snr
-    flux = flux_clean + rng.normal(0, sigma)
-    return Spectrum(
-        wave=wave, flux=flux, error=sigma, continuum=continuum_arr, meta=meta
-    )
+    meta = {"instrument": "synthetic", "absorbers": list(absorbers), "snr": snr}
+    return Spectrum(wave=wave, flux=flux, error=error, continuum=continuum, meta=meta)
+
+
+def _total_optical_depth(wave, absorbers):
+    """Optical depth of all the lines of all the absorbers.
+
+    Optical depths add because each line attenuates the same beam:
+    exp(-tau1) * exp(-tau2) = exp(-(tau1 + tau2)).
+
+    Parameters
+    ----------
+    wave : array
+        Wavelength grid, Angstrom.
+    absorbers : list of Absorber
+
+    Returns
+    -------
+    tau : array
+        Same shape as `wave`.
+    """
+    tau = np.zeros_like(wave)
+    for absorber in absorbers:
+        for line in absorber.lines:
+            tau += optical_depth(
+                wave, line, logN=absorber.logN, b=absorber.b, z=absorber.z
+            )
+    return tau
 
 
 def query_mast(target, radius=5 * u.arcsec, **criteria):
@@ -109,10 +114,27 @@ def query_mast(target, radius=5 * u.arcsec, **criteria):
     obs : astropy.table.Table
         One row per observation with dataproduct_type == "spectrum".
     """
-    position = {"coordinates": target} if isinstance(target, SkyCoord) else {"objectname": target}
     return Observations.query_criteria(
-        **position, radius=radius, dataproduct_type="spectrum", **criteria
+        **_mast_position(target), radius=radius, dataproduct_type="spectrum", **criteria
     )
+
+
+def _mast_position(target):
+    """Express a target as the position keyword of `query_criteria`.
+
+    Parameters
+    ----------
+    target : str or SkyCoord
+        Object name or sky position.
+
+    Returns
+    -------
+    position : dict
+        {"coordinates": target} or {"objectname": target}.
+    """
+    if isinstance(target, SkyCoord):
+        return {"coordinates": target}
+    return {"objectname": target}
 
 
 def download_mast_spectra(obs, download_dir="data/mast", max_size_mb=50, **filters):
@@ -123,7 +145,7 @@ def download_mast_spectra(obs, download_dir="data/mast", max_size_mb=50, **filte
     obs : astropy.table.Table
         Rows returned by `query_mast`.
     download_dir : str or Path
-        Files are written directly in this directory (flat layout).
+        Created if needed; files are written directly in it (flat layout).
     max_size_mb : float
         Skip products larger than this. Guards against catalogue-wide
         files attached to some collections (e.g. SDSS specObj, ~7 GB).
@@ -136,12 +158,7 @@ def download_mast_spectra(obs, download_dir="data/mast", max_size_mb=50, **filte
     paths : list of Path
         Local paths of the downloaded files.
     """
-    products = Observations.get_product_list(obs)
-    products = Observations.filter_products(
-        products, productType="SCIENCE", dataproduct_type="spectrum",
-        extension="fits", **filters
-    )
-    products = products[products["size"] <= max_size_mb * 1e6]
+    products = _science_spectra(obs, max_size_mb, **filters)
     if len(products) == 0:
         return []
 
@@ -149,14 +166,42 @@ def download_mast_spectra(obs, download_dir="data/mast", max_size_mb=50, **filte
     manifest = Observations.download_products(
         products, download_dir=str(download_dir), flat=True
     )
-    return [Path(p) for p in manifest["Local Path"]]
+    return [Path(local_path) for local_path in manifest["Local Path"]]
+
+
+def _science_spectra(obs, max_size_mb, **filters):
+    """List the science FITS spectra of `obs` no larger than `max_size_mb`.
+
+    Parameters
+    ----------
+    obs : astropy.table.Table
+        Rows returned by `query_mast`.
+    max_size_mb : float
+        Size limit per product, MB.
+    **filters
+        Extra `Observations.filter_products` filters.
+
+    Returns
+    -------
+    products : astropy.table.Table
+    """
+    products = Observations.get_product_list(obs)
+    products = Observations.filter_products(
+        products,
+        productType="SCIENCE",
+        dataproduct_type="spectrum",
+        extension="fits",
+        **filters,
+    )
+    return products[products["size"] <= max_size_mb * BYTES_PER_MB]
 
 
 def read_sdss_spec(path):
     """Load an SDSS spec / spec-lite file into a Spectrum.
 
-    SDSS wavelengths are already vacuum, heliocentric. Pixels with
-    ivar == 0 (no data, masked by the pipeline) are dropped.
+    Reads the co-added spectrum (HDU COADD, one row per pixel) and the
+    pipeline results (HDU SPECOBJ). SDSS wavelengths are vacuum,
+    heliocentric. Pixels with ivar == 0 (no valid data) are dropped.
 
     Parameters
     ----------
@@ -166,43 +211,91 @@ def read_sdss_spec(path):
     Returns
     -------
     spectrum : Spectrum
-        Flux and error in 1e-17 erg s^-1 cm^-2 Angstrom^-1. `meta`
-        holds the standard keys (see `Spectrum`) plus the pipeline
-        redshift and classification: z, z_err, class, subclass.
+        Flux and error in `SDSS_FLUX_UNIT`. `meta` holds the standard
+        keys (see `Spectrum`) plus the pipeline redshift and
+        classification: z, z_err, class, subclass.
     """
     with fits.open(path) as hdul:
         header = hdul[0].header
-        coadd = Table(hdul["COADD"].data)  # co-added spectrum, one row per pixel
-        specobj = hdul["SPECOBJ"].data[0]  # pipeline results, single row
+        coadd = Table(hdul["COADD"].data)
+        specobj = hdul["SPECOBJ"].data[0]
 
-    ivar = np.asarray(coadd["ivar"], dtype=float)  # inverse variance, 1/sigma^2
-    good = ivar > 0  # ivar == 0 marks pixels with no valid data
+    inverse_variance = np.asarray(coadd["ivar"], dtype=float)
+    good = inverse_variance > 0
+    fwhm_kms = _sdss_fwhm_kms(coadd["wdisp"][good])
+    meta = {**_sdss_meta(path, header, specobj), **_resolution_meta(fwhm_kms)}
+    return Spectrum(
+        wave=10 ** np.asarray(coadd["loglam"], dtype=float)[good],
+        flux=np.asarray(coadd["flux"], dtype=float)[good],
+        error=1 / np.sqrt(inverse_variance[good]),
+        meta=meta,
+    )
 
-    # wdisp: LSF Gaussian sigma in pixels of 1e-4 dex in log10(lambda)
-    sigma_kms = coadd["wdisp"][good] * 1e-4 * np.log(10) * C_KMS
-    fwhm_kms = float(np.median(2 * np.sqrt(2 * np.log(2)) * sigma_kms))
 
-    meta = {
+def _sdss_fwhm_kms(wdisp):
+    """Median instrumental FWHM from the SDSS `wdisp` column.
+
+    Parameters
+    ----------
+    wdisp : array
+        Gaussian sigma of the LSF, in pixels of `SDSS_PIXEL_DEX`.
+
+    Returns
+    -------
+    fwhm_kms : float
+        Median over the spectrum, km/s.
+    """
+    # A step of d(log10 lambda) is a velocity of ln(10) * d(log10 lambda) * c
+    sigma_kms = np.asarray(wdisp, dtype=float) * SDSS_PIXEL_DEX * np.log(10) * C_KMS
+    return float(np.median(FWHM_PER_SIGMA * sigma_kms))
+
+
+def _resolution_meta(fwhm_kms):
+    """Resolution keys of `Spectrum.meta`.
+
+    Parameters
+    ----------
+    fwhm_kms : float
+        Instrumental FWHM, km/s.
+
+    Returns
+    -------
+    meta : dict
+        fwhm_kms and resolving power R.
+    """
+    return {"fwhm_kms": fwhm_kms, "R": C_KMS / fwhm_kms}
+
+
+def _sdss_meta(path, header, specobj):
+    """Provenance, observation and pipeline keys of an SDSS spectrum.
+
+    Parameters
+    ----------
+    path : str or Path
+        File the spectrum was read from.
+    header : astropy.io.fits.Header
+        Primary header (EXPTIME summed over exposures, s).
+    specobj : FITS_record
+        Single row of the SPECOBJ HDU (PLUG_RA/DEC: fibre position, deg).
+
+    Returns
+    -------
+    meta : dict
+        Keys described in `Spectrum` and `read_sdss_spec`.
+    """
+    return {
         "instrument": "SDSS",
         "source": Path(path).name,
         "obs_id": f"{specobj['PLATE']}-{specobj['MJD']}-{specobj['FIBERID']:04d}",
-        "ra": float(specobj["PLUG_RA"]),  # fibre position, deg
+        "ra": float(specobj["PLUG_RA"]),
         "dec": float(specobj["PLUG_DEC"]),
         "mjd": int(specobj["MJD"]),
-        "exptime": float(header["EXPTIME"]),  # s, summed over exposures
+        "exptime": float(header["EXPTIME"]),
         "wave_frame": "vacuum, heliocentric",
-        "flux_unit": "1e-17 erg s^-1 cm^-2 Angstrom^-1",
-        "fwhm_kms": fwhm_kms,  # median over the spectrum
-        "R": C_KMS / fwhm_kms,
+        "flux_unit": SDSS_FLUX_UNIT,
         "snr": float(specobj["SN_MEDIAN_ALL"]),
         "z": float(specobj["Z"]),
         "z_err": float(specobj["Z_ERR"]),
-        "class": specobj["CLASS"].strip(),  # STAR / GALAXY / QSO
-        "subclass": specobj["SUBCLASS"].strip(),  # e.g. spectral type
+        "class": specobj["CLASS"].strip(),
+        "subclass": specobj["SUBCLASS"].strip(),
     }
-    return Spectrum(
-        wave=10 ** np.asarray(coadd["loglam"], dtype=float)[good],  # log10(lambda/A) -> A
-        flux=np.asarray(coadd["flux"], dtype=float)[good],
-        error=1 / np.sqrt(ivar[good]),  # sigma = 1/sqrt(ivar)
-        meta=meta,
-    )
