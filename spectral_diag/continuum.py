@@ -47,7 +47,7 @@ class ContinuumSettings:
         Maximum number of fit-and-clip iterations per clipping stage.
     """
 
-    knot_spacing: float = 150.0
+    knot_spacing: float = 250.0
     clip_low: float = 2.0
     clip_high: float = 4.0
     grow_width: float = 1.0
