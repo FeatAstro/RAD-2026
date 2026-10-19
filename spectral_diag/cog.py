@@ -58,7 +58,9 @@ def theoretical_ew(line, logN, b, z=0.0):
     W : float or array
         Equivalent width, Angstrom.
     """
-    logN, b = np.broadcast_arrays(np.asarray(logN, dtype=float), np.asarray(b, dtype=float))
+    logN, b = np.broadcast_arrays(
+        np.asarray(logN, dtype=float), np.asarray(b, dtype=float)
+    )
     tau0 = TAU0_CONST * 10**logN * line.f * line.wave_rest / b
     a = A_CONST * line.gamma * line.wave_rest / b
     reduced = np.array([_reduced_ew(t, ai) for t, ai in zip(tau0.ravel(), a.ravel())])

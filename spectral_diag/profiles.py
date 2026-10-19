@@ -62,7 +62,7 @@ def optical_depth_gaussian(wave, line, logN, b, z):
     lam0_obs = line.wave_rest * (1 + z)
     dv = C_KMS * (wave - lam0_obs) / lam0_obs  # km/s
     tau0 = TAU0_CONST * N * line.f * line.wave_rest / b
-    return tau0 * np.exp(-(dv / b) ** 2)
+    return tau0 * np.exp(-((dv / b) ** 2))
 
 
 def voigt(x, a):
