@@ -21,7 +21,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["spectral_diag"]
+packages = ["spectral_diag", "spectral_diag.detect"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

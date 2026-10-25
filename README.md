@@ -100,7 +100,7 @@ Details and interface in `Work_split.pdf`.
   scoring, strength-ratio checks), continuum error in `measure_ew`,
   curve of growth on the identified lines.
 - The two meet at the **features table** (columns in
-  `spectral_diag/detect.py`), so each side can be tested alone: Pablo
+  `spectral_diag/detect/__init__.py`), so each side can be tested alone: Pablo
   on synthetic spectra with known line positions, Gael on a
   hand-written features table read off the star.
 
