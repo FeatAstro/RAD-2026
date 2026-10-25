@@ -15,7 +15,7 @@ Possible developments listed by the teachers: spectra database queries, continuu
 - Oral presentation: **Dec 9** (50% of final grade, may be individualised per student)
 
 ## Scope decision
-Main target: UV/optical absorption spectra of quasar absorbers (Voigt profiles, HI + metal lines). Keep the code generic enough to demo a second domain (e.g. 21 cm or stellar) at the end.
+Updated after check-in 1 (Oct 14): start from a real spectrum, fit and remove the continuum, then detect, identify and characterise the lines. Absorption lines first, on the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (`data/mast/spec-lite-2182-53905-0101.fits`); quasar absorbers (Voigt profiles, HI + metal lines) remain a target. Identification by a "comb" per species (fixed wavelength ratios, Rydberg formula for H) checked by line-strength ratios; curve of growth for species with several lines. Keep detection generic (sign option) so emission spectra such as planetary nebulae can be added later, and the code generic enough to demo a second domain (e.g. 21 cm). Work split and the detect/identify interface: `Work_split.tex` and `spectral_diag/detect.py`.
 
 ## Stack and layout
 Python (numpy, scipy, astropy, astroquery, matplotlib; optional lmfit/emcee). Virtualenv in `.venv/` (ignored by git). Package in `spectral_diag/`, notebooks in `notebooks/`, data in `data/` (small files only).
@@ -34,8 +34,17 @@ Planned modules in `spectral_diag/`:
 Shared data structures (`Spectrum`, `Line`, `Absorber`) are agreed on early so the two students can work in parallel.
 
 ## Conventions
-- Validate everything on synthetic spectra with known (z, N, b) before real data; recover injected parameters across linear, saturated and damped regimes.
+- Base the analysis on real observed spectra (teachers' guidance), not on synthetic ones.
 - Sanity checks for COG: linear regime W ∝ N, damped regime W ∝ √N.
 - Units: wavelengths in Å (state explicitly), velocities in km/s, N in cm^-2 (log10 in outputs). Use astropy units where practical.
 - Do not commit large data files or the teachers' PDFs; do not commit or push unless asked.
 - Course material (lectures, tutorials) lives one level up in `../`; theory reference for curves of growth is in the Lecture 1 summaries there.
+- Formatting: black, line length 88 (configured in `pyproject.toml`).
+
+## Clean code
+Apply on every write or review. Flag violations explicitly and propose the refactor rather than fixing silently.
+- Naming: descriptive names that read like English, following PEP 8. Single letters are allowed only for loop indices and for standard physics symbols that match the equations (N, b, z, tau, lam). Replace magic numbers with named constants. No type prefixes.
+- Functions: at most ~20 lines, one job each, doing exactly what the name says. Arguments: the fewer the better (0 ideal, 1 fine, 2 suspicious); with 3+, strongly consider grouping them into a dataclass (`Spectrum`, `Line`, `Absorber`, ...), but it is a recommendation, not a hard limit. No hidden side effects: any mutation outside the function must be visible in its name or signature.
+- Abstraction: don't mix low-level details (indices, array bookkeeping) with high-level logic in the same function. Design the call-site interface first, then delegate internals to helpers.
+- Comments: if a block needs a comment saying WHAT it does, extract it into a well-named function. Comments explain only WHY (intent, assumptions, references). Put comments on the line before the code, never at the end of the line. Every function and class has a NumPy-style docstring.
+- Strategy: make it work, then clean, then fast. Don't optimize without measuring first.

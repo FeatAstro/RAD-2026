@@ -2,50 +2,59 @@
 
 Group project for the M2 IRT course "Radiation" (MC, 2026-2027).
 
-A numerical tool that starts from a real spectrum, fits the underlying
-continuum, finds the lines and characterises them. Following the
-feedback at check-in 1 (Oct 14), the main target is the optical
-emission-line spectrum of a **planetary nebula**: line fluxes and line
-ratios give the dust reddening, electron temperature, electron density
-and ionic abundances of the nebula.
+A numerical tool that starts from a real spectrum, fits and removes the
+continuum, finds the lines, identifies them and characterises them. We
+work on **absorption lines** (decided after check-in 1, Oct 14): first
+in the spectrum of a star, with the curve of growth used to derive the
+column density N and Doppler parameter b of the species with several
+lines. The detection code takes a sign option so that emission spectra
+(e.g. planetary nebulae, suggested by the teachers) can be handled
+later.
 
-## Planned features
-- Load real spectra (HST/STIS from the MAST archive), including our own
-  extraction of a 1D spectrum from the 2D long-slit image
-- Continuum fitting with sigma-clipping that rejects emission lines
-- Line list of nebular lines (H and He recombination lines, forbidden
-  lines of O, N, S, Ne, Ar)
-- Automatic line detection and identification against the line list
-- Gaussian line fitting (including blends such as Halpha + [NII]) and
-  line fluxes with uncertainties
-- Diagnostics: reddening from the Balmer decrement, electron temperature
-  from [OIII] and [NII], electron density from [SII] and [OII], ionic
-  abundances
-- Uncertainty estimation (Monte Carlo on the noise and the continuum)
-- Interactive visualisation of the spectrum and fitted lines
-- Already done for absorption spectra (kept as a validated module):
-  Voigt profiles, equivalent widths, theoretical curves of growth and
-  the (N, b) fit
+## Pipeline
+1. **Read** a real spectrum (MAST / SDSS) -- done (`io`)
+2. **Fit and remove the continuum** -- done (`continuum`)
+3. **Detect** the significant dips -> table of features -- to do (`detect.find_features`)
+4. **Identify** them with a "comb" per species -- to do (`linelist`, `detect.identify`)
+5. **Measure** their equivalent widths -- done (`ew`), continuum error still to add
+6. **Curve of growth**: N and b per species -- done (`cog`)
+
+### How identification works (the comb)
+A Doppler shift or a redshift multiplies every wavelength by the same
+factor, `lambda_obs = lambda_rest * (1 + z)`, so the *ratios* between
+the wavelengths of one species never change. Each species is a comb
+of known rest wavelengths (its teeth); we slide it over the spectrum
+(trial velocities, e.g. -600 to +600 km/s for a star, any z for a
+quasar absorber) and count how many teeth land on a detected dip. The
+best position gives the species' velocity and identifies the dips.
+Species are tried from the most common (H, He, Ca, Na, Mg, O, Fe...),
+and the matched dips are removed before the next one.
+- Hydrogen (and HeII) combs are computed from the Rydberg formula with
+  `scipy.constants`; other species come from a line table (NIST).
+- Strength ratios guard against chance matches: a species is rejected
+  if a line predicted to be strong is missing, and doublets (CaII H&K,
+  NaD) must have EW ratios between 2:1 (weak lines) and 1:1 (saturated),
+  which is the curve of growth again.
+- Earth's atmosphere (O2 at 6870 and 7600 A, H2O) is treated as one
+  more "species", so that its bands are not taken for stellar lines.
 
 ## Data
-Candidate spectra found in MAST (HST/STIS CCD long slit, G430L +
-G750L, together about 2900-10200 A at a few A per pixel):
-- **NGC 7662**, programme 12600, slit offset onto the nebula (no central
-  star in the slit). Best blue side: [OIII] 4363 separated from Hgamma,
-  [NeIII] 3869, HeII 4686, the Balmer series. Main target.
-- **NGC 7027**, programme 8285. Richest red side (Halpha + [NII],
-  [NII] 5755, [OI], [SII], [ArIII], [OII] 7320/7330, [SIII] 9069/9532),
-  but heavily reddened and noisy in the blue. Second target.
-- NGC 3242, programme 12600, similar to NGC 7662.
-
-The pipeline 1D products (`_sx1`) extract only 7 pixels along the slit
-and are very noisy for an extended nebula; summing the nebular rows of
-the 2D rectified image (`_sx2`) gives a much better spectrum (quick
-look: `figures/pn_candidates_mast.png`).
+- **Main spectrum**: the A0 star SDSS J172637.24+264127.6 (SDSS
+  2182-53905-0101; 3810-9210 A, vacuum wavelengths, 69 km/s pixels,
+  resolution R ~ 2000, S/N ~ 60). Downloaded with
+  `io.query_mast` / `io.download_mast_spectra` into `data/mast/`
+  (gitignored: run `notebooks/MAST_query.ipynb` once). Expected lines:
+  Balmer and Paschen series, CaII H&K and 8498/8542/8662 triplet,
+  MgII 4481, OI 7772-7775, NaD (probably interstellar), many weak Fe
+  lines, telluric O2 and H2O bands.
+- Planetary nebula spectra found in MAST (HST/STIS, NGC 7662 and
+  NGC 7027; `figures/pn_candidates_mast.png`) are kept for a possible
+  emission-line extension.
 
 ## Layout
 ```
-spectral_diag/   Python package (io, continuum, linelist, detect, ew, profiles, cog, uncertainty, viz; diagnostics planned)
+spectral_diag/   Python package (io, continuum, linelist, detect, ew, profiles, cog, uncertainty, viz)
+tests/           pytest suite (synthetic checks), run with `pytest`
 notebooks/       Demonstrations and validation
 figures/         Reference and illustration images used by the notebooks
 data/            Small example spectra
@@ -54,7 +63,8 @@ Projects.pdf     Project statement
 Current structure: `spectral_diag/` has the package skeleton (shared
 `Spectrum`/`Line`/`Absorber` classes in `core.py`, one stub module per
 planned component). Implemented so far: `profiles` (Gaussian and Voigt
-optical depth), `ew`, `io.make_synthetic`, `linelist` (CIV, SiII, FeII)
+optical depth), `ew`, `io` (synthetic spectra, MAST query/download,
+SDSS reader), `continuum`, `linelist` (CIV, SiII, FeII)
 and `cog` (see Progress log below).
 
 ## Installation
@@ -76,17 +86,23 @@ To be written once the first end-to-end pipeline runs.
 ## Timeline
 | Date | Milestone |
 |---|---|
-| Oct 14 | Check-in 1: absorption chain validated on synthetic spectra (profiles, EW, COG). New target: planetary nebulae |
-| Nov 18 | Check-in 2: real PN spectrum extracted, continuum fitted, lines detected, identified and fitted; reddening and electron temperature |
+| Oct 14 | Check-in 1: absorption chain validated on synthetic spectra (profiles, EW, COG). Feedback: start from a real spectrum, continuum first, then find and identify the lines |
+| Nov 18 | Check-in 2: on the star, continuum + automatic detection + comb identification + EWs; curve of growth for the species with several lines |
 | Dec 9 | Oral presentation (50% of the course grade) |
 
 ## Team
-See `Work_split.pdf` for the details.
-- Student A: data to lines (MAST download and 1D extraction, continuum,
-  line list, detection and identification, visualisation)
-- Student B: lines to physics (line profiles and fits, fluxes and
-  errors, reddening, temperature and density diagnostics, abundances,
-  uncertainties)
+Details and interface in `Work_split.pdf`.
+- **Pablo** (data -> lines): `detect.find_features` (detection of
+  significant dips, merging, significance), plot of the detected
+  features, telluric masks; later NIST queries for the line list.
+- **Gael** (lines -> physics): `linelist` (Rydberg hydrogen comb +
+  table of common species with f-values), `detect.identify` (comb scan,
+  scoring, strength-ratio checks), continuum error in `measure_ew`,
+  curve of growth on the identified lines.
+- The two meet at the **features table** (columns in
+  `spectral_diag/detect.py`), so each side can be tested alone: Pablo
+  on synthetic spectra with known line positions, Gael on a
+  hand-written features table read off the star.
 
 ## Progress log
 - Package skeleton (`spectral_diag/`), shared `Spectrum`/`Line`/`Absorber`
@@ -190,5 +206,35 @@ See `Work_split.pdf` for the details.
   emitting ions); the absorption code above stays as a validated module.
   Searched MAST for bright nebulae with HST/STIS spectra and selected
   NGC 7662 and NGC 7027 (see Data above).
-- Next: `io` reader for STIS `_sx2` files with extraction along the
-  slit, then `continuum.py` for an emission-line spectrum.
+- First real spectrum: before the planetary nebulae, the absorption
+  chain is tested on the A0 star SDSS J172637.24+264127.6 (SDSS
+  2182-53905-0101, 3810-9210 A, R ~ 2000, S/N 62). `io.query_mast`,
+  `io.download_mast_spectra` and `io.read_sdss_spec` (Pablo) fetch and
+  read it (`notebooks/MAST_query.ipynb`); a pytest suite (`tests/`)
+  automates the earlier notebook checks.
+- `continuum.py`: `fit_continuum(spectrum, knot_spacing=250, k_low=2,
+  k_high=4, grow=3, exclude=None)` fits a weighted cubic spline through
+  the pixels kept by iterative asymmetric sigma-clipping (reject more
+  than 2 sigma below the fit, grow each rejected region by 3 pixels;
+  the upper clip is switched on only once the lower clip has converged,
+  otherwise the first, line-depressed fit throws away real continuum
+  pixels). Returns the continuum, its statistical error from the spline
+  covariance, and the mask of kept pixels; `normalise` divides by it.
+  Synthetic checks are in `tests/test_continuum.py`: on an SDSS-like
+  A-star spectrum (blackbody continuum, S/N 60) the continuum is
+  recovered to < 0.5% away from the ends, and a broad (Balmer-like)
+  line comes out too weak (about -0.6 A of 15 A at 250 A knot spacing,
+  more with closer knots). `notebooks/05_continuum.ipynb` works on the
+  real star only: fit, zooms on the difficult regions, residuals of the
+  kept pixels (centred on 0, but the 200 A bin around Hbeta sits 0.7%
+  below the continuum: its outer wings stay in the fit), and the Balmer
+  EWs for knot spacings 150-700 A: e.g. Hbeta = 14.02 +- 0.23 (noise)
+  +- 0.84 (continuum) A. The continuum dominates the error budget of
+  broad lines.
+- Check-in feedback (Oct 14) turned into a plan: absorption lines,
+  continuum first, then detection and identification with a comb per
+  species (wavelength ratios fixed by atomic physics) checked by
+  strength ratios. Split: Pablo on detection, Gael on line list and
+  identification (see Team).
+- Next: `detect.find_features` (Pablo), `linelist` Rydberg comb and
+  `detect.identify` (Gael).

@@ -63,10 +63,11 @@ class Line:
     f : float
         Absorption oscillator strength f_lu.
     gamma : float
-        Total damping constant of the upper level, s^-1.
+        Total damping constant: decay rate of the upper level plus that
+        of the lower level (0 for the ground level), s^-1.
     name : str, optional
         Unique label used to match EWs to lines and in plots. Defaults
-        to species + truncated wave_rest, e.g. "CIV 1548".
+        to species + wave_rest to 3 decimals, e.g. "CIV 1548.195".
     """
 
     species: str
@@ -80,7 +81,7 @@ class Line:
 
     def __post_init__(self):
         if self.name is None:
-            object.__setattr__(self, "name", f"{self.species} {int(self.wave_rest)}")
+            object.__setattr__(self, "name", f"{self.species} {self.wave_rest:.3f}")
 
 
 @dataclass
