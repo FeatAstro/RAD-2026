@@ -10,6 +10,15 @@ Written for absorption spectra: pixels far below the fit are treated
 as lines, pixels far above it as glitches (cosmic rays, sky residuals).
 """
 
+# TODO: for Doppler-broadened lines (quasar absorbers, ISM, 21 cm), give
+# knot_spacing and grow_width in km/s and place knots uniformly in
+# ln(lambda), since dlambda / lambda = dv / c. A fixed spacing in Angstrom
+# is relatively stiffer in the blue and looser in the red, because the
+# same b gives lines that widen as lambda grows; a velocity spacing keeps
+# the knot-spacing-to-line-width ratio constant across the spectrum.
+# Not needed for the A0 star: 250 A is far wider than any line over the
+# whole SDSS range, and its Balmer wings are Stark, not Doppler, broadened.
+
 import warnings
 from dataclasses import dataclass, replace
 
@@ -19,7 +28,10 @@ from scipy.interpolate import BSpline, make_lsq_spline
 # Cubic spline: smooth up to the second derivative
 SPLINE_DEGREE = 3
 # Fewest fitted pixels allowed between two knots; below this the cubic
-# in that interval is poorly constrained, so the interval is merged
+# in that interval is poorly constrained, so the interval is merged.
+# Heuristic margin (~2-3x the 4 local cubic coefficients); the exact
+# value matters little at the default knot spacing (~125-280 pixels
+# per interval on SDSS)
 MIN_PIXELS_PER_INTERVAL = 10
 
 
@@ -42,7 +54,10 @@ class ContinuumSettings:
         Pixels within this distance of a rejected pixel are rejected
         too, Angstrom. Removes line wings too shallow to be clipped on
         their own. In Angstrom rather than pixels because SDSS pixels
-        are uniform in log(lambda), not in lambda.
+        are uniform in log(lambda), not in lambda. Off by default: a
+        few Angstrom barely covers Balmer wings (~100 A) and shifts the
+        A0 star's Balmer EWs by up to ~7% with no clear trend; meant for
+        narrow lines (e.g. quasar absorbers) whose wings span few pixels.
     max_iter : int
         Maximum number of fit-and-clip iterations per clipping stage.
     """
@@ -50,7 +65,7 @@ class ContinuumSettings:
     knot_spacing: float = 250.0
     clip_low: float = 2.0
     clip_high: float = 4.0
-    grow_width: float = 1.0
+    grow_width: float = 0.0
     max_iter: int = 20
 
 
