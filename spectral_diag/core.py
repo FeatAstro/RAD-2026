@@ -15,6 +15,8 @@ from scipy import constants as _const
 C_KMS = _const.c * 1e-3  # speed of light, km/s
 ANGSTROM_TO_CM = 1e-8
 KMS_TO_CMS = 1e5
+# FWHM of a Gaussian in units of its sigma
+FWHM_PER_SIGMA = 2 * np.sqrt(2 * np.log(2))
 
 
 @dataclass
@@ -38,6 +40,8 @@ class Spectrum:
         ra, dec (deg), mjd, exptime (s) -- observation;
         wave_frame, flux_unit -- conventions;
         fwhm_kms, R -- instrumental resolution;
+        pixel_dex -- pixel width, log10(Angstrom), for grids uniform
+        in log10(wave);
         snr -- median signal-to-noise;
         absorbers -- injected truth (synthetic spectra).
     """

@@ -51,7 +51,7 @@ Step & Module & Status \\
 \bottomrule
 \end{tabular}
 
-\textbf{Interface: the features table} (full description in \texttt{spectral\_diag/detect.py}). \texttt{find\_features(spectrum, threshold=4.0, sign=-1)} returns an astropy \texttt{Table}, one row per feature, columns \texttt{wave}, \texttt{wave\_err}, \texttt{wave\_min}, \texttt{wave\_max} (\AA, vacuum), \texttt{depth}, \texttt{ew}, \texttt{ew\_err} (\AA), \texttt{snr}. \texttt{identify} adds \texttt{species}, \texttt{line}, \texttt{wave\_rest}, \texttt{v} (km/s). Each side can be written and tested without the other.
+\textbf{Interface: the features table} (full description in the docstring of the package \texttt{spectral\_diag.detect}). \texttt{find\_features(spectrum, threshold=4.0, sign=-1)} returns an astropy \texttt{Table}, one row per feature, columns \texttt{wave}, \texttt{wave\_err}, \texttt{wave\_min}, \texttt{wave\_max} (\AA, vacuum), \texttt{depth}, \texttt{ew}, \texttt{ew\_err} (\AA), \texttt{snr}. \texttt{identify} adds \texttt{species}, \texttt{line}, \texttt{wave\_rest}, \texttt{v} (km/s). Each side can be written and tested without the other: \texttt{detect} is a package with one module per job, and \texttt{identify} goes in its own module \texttt{detect/identify.py}, re-exported by the package.
 
 \textbf{Timeline.}\par
 \begin{tabular}{@{}p{2.5cm}p{14.2cm}@{}}

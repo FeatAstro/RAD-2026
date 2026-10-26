@@ -18,11 +18,10 @@ from astropy.io import fits
 from astropy.table import Table
 from astroquery.mast import Observations
 
-from .core import C_KMS, Spectrum
+from .core import C_KMS, FWHM_PER_SIGMA, Spectrum
 from .profiles import optical_depth
 
 BYTES_PER_MB = 1e6
-FWHM_PER_SIGMA = 2 * np.sqrt(2 * np.log(2))
 # SDSS pixels are uniform in log10(lambda), 1e-4 dex wide
 SDSS_PIXEL_DEX = 1e-4
 SDSS_FLUX_UNIT = "1e-17 erg s^-1 cm^-2 Angstrom^-1"
@@ -292,6 +291,7 @@ def _sdss_meta(path, header, specobj):
         "mjd": int(specobj["MJD"]),
         "exptime": float(header["EXPTIME"]),
         "wave_frame": "vacuum, heliocentric",
+        "pixel_dex": SDSS_PIXEL_DEX,
         "flux_unit": SDSS_FLUX_UNIT,
         "snr": float(specobj["SN_MEDIAN_ALL"]),
         "z": float(specobj["Z"]),
