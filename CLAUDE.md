@@ -44,7 +44,8 @@ Shared data structures (`Spectrum`, `Line`, `Absorber`) are agreed on early so t
 
 ## Clean code
 Apply on every write or review. Flag violations explicitly and propose the refactor rather than fixing silently.
-- Naming: descriptive names that read like English, following PEP 8. Single letters are allowed only for loop indices and for standard physics symbols that match the equations (N, b, z, tau, lam). Replace magic numbers with named constants. No type prefixes.
+- Naming: descriptive names that read like English, following PEP 8. Use full English names, even for physics quantities (`equivalent_width`, not `W`). Single letters are allowed only for loop indices and for the shared interface of `Absorber` and the profile functions (`logN`, `b`, `z`, and the symbols `N`, `tau`, `lam` where they match the equations). Replace magic numbers with named constants. No type prefixes.
+- Simple over clever: plain loops and basic numpy rather than library tricks (`np.r_`, `searchsorted`, `ndimage.label`, broadcasting with `[:, None]`), even if the code is a bit longer.
 - Functions: at most ~20 lines, one job each, doing exactly what the name says. Arguments: the fewer the better (0 ideal, 1 fine, 2 suspicious); with 3+, strongly consider grouping them into a dataclass (`Spectrum`, `Line`, `Absorber`, ...), but it is a recommendation, not a hard limit. No hidden side effects: any mutation outside the function must be visible in its name or signature.
 - Abstraction: don't mix low-level details (indices, array bookkeeping) with high-level logic in the same function. Design the call-site interface first, then delegate internals to helpers.
 - Comments: if a block needs a comment saying WHAT it does, extract it into a well-named function. Comments explain only WHY (intent, assumptions, references). Put comments on the line before the code, never at the end of the line. Every function and class has a NumPy-style docstring.
