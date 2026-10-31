@@ -1,9 +1,9 @@
 import numpy as np
 
-from spectral_diag.cog import ew_linear
-from spectral_diag.core import Absorber
-from spectral_diag.ew import measure_ew
-from spectral_diag.io import make_synthetic
+from spectral_diag.curve_of_growth import ew_linear
+from spectral_diag.data_classes import Absorber
+from spectral_diag.equivalent_width import measure_ew
+from spectral_diag.synthetic_spectrum import make_synthetic
 
 
 def test_synthetic_noise_free_ew(line):

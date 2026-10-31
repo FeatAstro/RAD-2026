@@ -7,9 +7,9 @@ binned into pixels by InstrumentGrid. Wavelengths in Angstrom.
 import numpy as np
 import pytest
 
-from spectral_diag.core import Absorber, Line, Spectrum
+from spectral_diag.data_classes import Absorber, Line, Spectrum
 from spectral_diag.detect import FEATURE_COLUMNS, find_features
-from spectral_diag.profiles import InstrumentGrid, optical_depth
+from spectral_diag.line_profiles import InstrumentGrid, optical_depth
 
 PIXEL_DEX = 1e-4
 FWHM_KMS = 150.0

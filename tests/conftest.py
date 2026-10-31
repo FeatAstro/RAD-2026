@@ -1,6 +1,6 @@
 import pytest
 
-from spectral_diag.core import Line
+from spectral_diag.data_classes import Line
 
 
 @pytest.fixture

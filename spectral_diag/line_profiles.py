@@ -17,15 +17,16 @@ from scipy import constants as _const
 from scipy.ndimage import gaussian_filter1d
 from scipy.special import wofz
 
-from .core import ANGSTROM_TO_CM, C_KMS, FWHM_PER_SIGMA, KMS_TO_CMS
+from .constants import ANGSTROM_TO_CM, C_KMS, FWHM_PER_SIGMA, KMS_TO_CMS
 
 # tau0 = sqrt(pi) * r_e * c * f * lambda_rest * N / b, with r_e the
 # classical electron radius (see NOTES_perso.tex Sec. 4 -- this is the
 # same combination as e^2/(m_e*c) in cgs, via r_e = e^2/(m_e*c^2)).
 # Built from CODATA constants rather than a truncated literature value,
 # then converted so N is in cm^-2, lambda_rest in Angstrom, b in km/s.
-_R_E_CM = _const.physical_constants["classical electron radius"][0] * 1e2  # m -> cm
-_C_CMS = _const.c * 1e2  # m/s -> cm/s
+# Classical electron radius and speed of light, from m to cm
+_R_E_CM = _const.physical_constants["classical electron radius"][0] * 1e2
+_C_CMS = _const.c * 1e2
 
 TAU0_CONST = np.sqrt(np.pi) * _R_E_CM * _C_CMS * ANGSTROM_TO_CM / KMS_TO_CMS
 # tau0 = TAU0_CONST * N[cm^-2] * f * lambda_rest[Angstrom] / b[km/s]
@@ -66,11 +67,9 @@ def optical_depth_gaussian(wave, line, logN, b, z):
     tau : array
         Optical depth at each wavelength in `wave` (dimensionless).
     """
-    N = 10**logN
-    lam0_obs = line.wave_rest * (1 + z)
-    dv = C_KMS * (wave - lam0_obs) / lam0_obs  # km/s
-    tau0 = TAU0_CONST * N * line.f * line.wave_rest / b
-    return tau0 * np.exp(-((dv / b) ** 2))
+    velocity_offset = _velocity_offset(wave, line, z)
+    central_optical_depth = _central_optical_depth(line, logN, b)
+    return central_optical_depth * np.exp(-((velocity_offset / b) ** 2))
 
 
 def voigt(x, a):
@@ -111,13 +110,49 @@ def optical_depth(wave, line, logN, b, z):
     tau : array
         Optical depth at each wavelength in `wave` (dimensionless).
     """
-    N = 10**logN
-    lam0_obs = line.wave_rest * (1 + z)
-    dv = C_KMS * (wave - lam0_obs) / lam0_obs  # km/s
-    x = dv / b
-    a = A_CONST * line.gamma * line.wave_rest / b
-    tau0 = TAU0_CONST * N * line.f * line.wave_rest / b
-    return tau0 * voigt(x, a)
+    offset_in_doppler_widths = _velocity_offset(wave, line, z) / b
+    damping_parameter = A_CONST * line.gamma * line.wave_rest / b
+    central_optical_depth = _central_optical_depth(line, logN, b)
+    return central_optical_depth * voigt(offset_in_doppler_widths, damping_parameter)
+
+
+def _velocity_offset(wave, line, z):
+    """Velocity of each wavelength relative to the observed line centre.
+
+    Parameters
+    ----------
+    wave : array
+        Observed wavelength grid, Angstrom.
+    line : Line
+    z : float
+        Redshift of the absorber.
+
+    Returns
+    -------
+    velocity_offset : array
+        km/s.
+    """
+    observed_centre = line.wave_rest * (1 + z)
+    return C_KMS * (wave - observed_centre) / observed_centre
+
+
+def _central_optical_depth(line, logN, b):
+    """Optical depth at the line centre, tau0 = TAU0_CONST * N * f * lambda / b.
+
+    Parameters
+    ----------
+    line : Line
+    logN : float
+        log10(column density / cm^-2).
+    b : float
+        Doppler parameter, km/s.
+
+    Returns
+    -------
+    central_optical_depth : float
+    """
+    column_density = 10**logN
+    return TAU0_CONST * column_density * line.f * line.wave_rest / b
 
 
 @dataclass(frozen=True)

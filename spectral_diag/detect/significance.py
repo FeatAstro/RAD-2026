@@ -8,7 +8,7 @@ features are the groups of pixels above a detection threshold.
 import numpy as np
 from scipy import ndimage
 
-from ..core import C_KMS, FWHM_PER_SIGMA
+from ..constants import C_KMS, FWHM_PER_SIGMA
 
 # Significance (in sigma) below which the window of a feature ends. The
 # window grows from the detected pixels while the significance stays above
@@ -67,7 +67,7 @@ def relative_signal(spectrum, sign):
     # Placeholder so that the division is defined; NaN pixels are zeroed below
     continuum = np.where(valid, spectrum.continuum, 1.0)
     signal = np.where(valid, sign * (spectrum.flux / continuum - 1), 0.0)
-    # TODO: add the continuum error (systematic: needs the covariance); with `ew`
+    # TODO: add the continuum error (needs the covariance), as in `equivalent_width`
     relative_error = spectrum.error / continuum
     inverse_variance = np.where(valid, 1 / relative_error**2, 0.0)
     return signal, inverse_variance

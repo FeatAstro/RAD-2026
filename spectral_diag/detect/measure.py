@@ -10,8 +10,8 @@ from dataclasses import replace
 import numpy as np
 from scipy.optimize import curve_fit
 
-from ..core import C_KMS, FWHM_PER_SIGMA
-from ..ew import measure_ew
+from ..constants import C_KMS, FWHM_PER_SIGMA
+from ..equivalent_width import measure_ew
 from .significance import relative_signal
 
 

@@ -22,7 +22,7 @@ Work_split.pdf.
 
 - identify(features, species, v_range=(-600, 600), tol=None)   [Gael]
     Slide the "comb" of each species (its rest wavelengths, from
-    linelist) over the features: for each trial velocity v, place the
+    line_list) over the features: for each trial velocity v, place the
     teeth at lambda_rest * (1 + v / c) and score the teeth that land on
     a feature within `tol` (default: about one resolution element),
     weighted by the expected line strength and penalised for strong

@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
 
-from spectral_diag.core import C_KMS, FWHM_PER_SIGMA, Line, Spectrum
-from spectral_diag.profiles import (
+from spectral_diag.constants import C_KMS, FWHM_PER_SIGMA
+from spectral_diag.data_classes import Line, Spectrum
+from spectral_diag.line_profiles import (
     InstrumentGrid,
     optical_depth,
     optical_depth_gaussian,

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from requests.exceptions import RequestException
 
-from spectral_diag.linelist import LineSelection, _nist_name, get_lines, query_nist
+from spectral_diag.line_list import LineSelection, _nist_name, get_lines, query_nist
 
 
 def _query_nist_or_skip(species, selection):

@@ -18,12 +18,12 @@
 \toprule
 Step & Module & Status \\
 \midrule
-1. Read the spectrum & \texttt{io} (MAST query/download, SDSS reader) & done (Pablo) \\
+1. Read the spectrum & \texttt{mast\_archive}, \texttt{sdss\_reader} & done (Pablo) \\
 2. Fit and remove the continuum & \texttt{continuum.fit\_continuum}, \texttt{normalise} & done (Gaël) \\
 3. Detect the significant dips & \texttt{detect.find\_features} & \textbf{to do -- Pablo} \\
-4. Identify them (comb per species) & \texttt{linelist}, \texttt{detect.identify} & \textbf{to do -- Gaël} \\
-5. Equivalent widths & \texttt{ew.measure\_ew} & done; continuum error to add \\
-6. Curve of growth: $N$, $b$ per species & \texttt{cog.fit\_cog} & done (on synthetic data) \\
+4. Identify them (comb per species) & \texttt{line\_list}, \texttt{detect.identify} & \textbf{to do -- Gaël} \\
+5. Equivalent widths & \texttt{equivalent\_width.measure\_ew} & done; continuum error to add \\
+6. Curve of growth: $N$, $b$ per species & \texttt{curve\_of\_growth.fit\_cog} & done (on synthetic data) \\
 \bottomrule
 \end{tabular}
 
@@ -42,7 +42,7 @@ Step & Module & Status \\
 \end{itemize}
 &
 \begin{itemize}
-\item \texttt{linelist}: hydrogen comb from the Rydberg formula (\texttt{scipy.constants}); table of common species (CaII, MgII, NaI, OI, HeI, FeII) with $\lambda_{\rm vac}$, $f$, lower-level energy
+\item \texttt{line\_list}: hydrogen comb from the Rydberg formula (\texttt{scipy.constants}); table of common species (CaII, MgII, NaI, OI, HeI, FeII) with $\lambda_{\rm vac}$, $f$, lower-level energy
 \item \texttt{detect.identify}: comb scan, scoring weighted by expected strength, strength-ratio checks
 \item Continuum error in \texttt{measure\_ew}
 \item Curve of growth on the identified lines

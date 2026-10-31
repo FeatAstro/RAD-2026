@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from spectral_diag.cog import ew_linear
-from spectral_diag.ew import measure_ew
-from spectral_diag.profiles import optical_depth, optical_depth_gaussian
+from spectral_diag.curve_of_growth import ew_linear
+from spectral_diag.equivalent_width import measure_ew
+from spectral_diag.line_profiles import optical_depth, optical_depth_gaussian
 
 WAVE = np.linspace(1200, 1800, 200_000)
 CONTINUUM = np.ones_like(WAVE)

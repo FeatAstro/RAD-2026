@@ -21,15 +21,16 @@ Updated after check-in 1 (Oct 14): start from a real spectrum, fit and remove th
 Python (numpy, scipy, astropy, astroquery, matplotlib; optional lmfit/emcee). Virtualenv in `.venv/` (ignored by git). Package in `spectral_diag/`, notebooks in `notebooks/`, data in `data/` (small files only).
 
 Planned modules in `spectral_diag/`:
-- `io` – load spectra (FITS/ASCII), archive queries, synthetic spectra
+- `constants`, `data_classes` – physical constants; shared `Spectrum`, `Line`, `Absorber`
+- `sdss_reader`, `mast_archive`, `synthetic_spectrum` – read SDSS files, query/download MAST, synthetic spectra
 - `continuum` – iterative sigma-clipped spline/polynomial fit, normalisation
-- `linelist` – atomic data (λ, f, Γ) for common ISM/CGM lines
+- `line_list` – atomic data (λ, f, Γ) for common ISM/CGM lines
 - `detect` – feature detection and line identification via redshift matching
-- `ew` – equivalent widths with error propagation
-- `profiles` – Voigt profile (`scipy.special.wofz`), optical depth τ(λ; N, b, z), LSF
-- `cog` – theoretical COG and multi-line fit for N and b
+- `equivalent_width` – equivalent widths with error propagation
+- `line_profiles` – Voigt profile (`scipy.special.wofz`), optical depth τ(λ; N, b, z), LSF
+- `curve_of_growth` – theoretical COG and multi-line fit for N and b
 - `uncertainty` – χ² grid / MCMC / bootstrap
-- `viz` – interactive spectrum and fit visualisation
+- `plots` – interactive spectrum and fit visualisation
 
 Shared data structures (`Spectrum`, `Line`, `Absorber`) are agreed on early so the two students can work in parallel.
 

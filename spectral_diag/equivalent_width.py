@@ -8,13 +8,29 @@ Planned contents:
 import numpy as np
 
 
-def _trapz_weights(x):
-    """Per-point weights such that sum(weights * y) == np.trapezoid(y, x)."""
-    w = np.zeros_like(x, dtype=float)
-    w[1:-1] = (x[2:] - x[:-2]) / 2
-    w[0] = (x[1] - x[0]) / 2
-    w[-1] = (x[-1] - x[-2]) / 2
-    return w
+def _trapezoid_weights(wave):
+    """Per-pixel weights such that sum(weights * y) == np.trapezoid(y, wave).
+
+    Each pixel gets half the distance between its two neighbours; the
+    first and last pixels, half the distance to their only neighbour.
+
+    Parameters
+    ----------
+    wave : array
+        Increasing wavelengths, Angstrom.
+
+    Returns
+    -------
+    weights : array
+        Angstrom.
+    """
+    weights = np.zeros(len(wave))
+    last = len(wave) - 1
+    weights[0] = (wave[1] - wave[0]) / 2
+    weights[last] = (wave[last] - wave[last - 1]) / 2
+    for pixel in range(1, last):
+        weights[pixel] = (wave[pixel + 1] - wave[pixel - 1]) / 2
+    return weights
 
 
 def measure_ew(wave, flux, continuum, error=None, wave_min=None, wave_max=None):
@@ -60,12 +76,12 @@ def measure_ew(wave, flux, continuum, error=None, wave_min=None, wave_max=None):
         if error is not None:
             error = np.asarray(error, dtype=float)[mask]
 
-    W = np.trapezoid(1 - flux / continuum, wave)
+    equivalent_width = np.trapezoid(1 - flux / continuum, wave)
 
     if error is None:
-        return W, None
+        return equivalent_width, None
 
     error = np.asarray(error, dtype=float)
-    weights = _trapz_weights(wave)
-    var_W = np.sum((weights * error / continuum) ** 2)
-    return W, np.sqrt(var_W)
+    weights = _trapezoid_weights(wave)
+    variance = np.sum((weights * error / continuum) ** 2)
+    return equivalent_width, np.sqrt(variance)

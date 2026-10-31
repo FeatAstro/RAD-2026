@@ -22,7 +22,7 @@ import astropy.units as u
 import numpy as np
 from astroquery.nist import Nist
 
-from .core import Line
+from .data_classes import Line
 
 # species -> (wave_rest [Angstrom], f, gamma [s^-1])
 _VERNER96_LINES = {

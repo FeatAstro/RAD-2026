@@ -14,9 +14,10 @@ from spectral_diag.continuum import (
     fit_continuum,
     normalise,
 )
-from spectral_diag.core import C_KMS, Absorber, Line, Spectrum
-from spectral_diag.ew import measure_ew
-from spectral_diag.io import make_synthetic
+from spectral_diag.constants import C_KMS
+from spectral_diag.data_classes import Absorber, Line, Spectrum
+from spectral_diag.equivalent_width import measure_ew
+from spectral_diag.synthetic_spectrum import make_synthetic
 
 WAVE = np.linspace(4000, 6000, 4000)
 # Smooth, sloped continuum
@@ -57,7 +58,9 @@ def _blackbody_shape(wave, temperature):
     flux : array
     """
     lam = wave * 1e-10
-    planck = 1 / (lam**5 * np.expm1(constants.h * constants.c / (lam * constants.k * temperature)))
+    planck = 1 / (
+        lam**5 * np.expm1(constants.h * constants.c / (lam * constants.k * temperature))
+    )
     return 1000 * planck / planck.max()
 
 
@@ -105,19 +108,12 @@ def test_no_lines_recovers_continuum_within_errors():
 
 def test_narrow_lines_are_rejected():
     lines = [Line("X", wave, 0.3, 1e8) for wave in (4300.0, 4800.0, 5500.0)]
-    fit = fit_continuum(_noisy(WAVE, CONTINUUM, [Absorber("X", 0.0, 14.0, 60.0, lines)]))
+    fit = fit_continuum(
+        _noisy(WAVE, CONTINUUM, [Absorber("X", 0.0, 14.0, 60.0, lines)])
+    )
     for line in lines:
         assert not fit.used[np.argmin(np.abs(WAVE - line.wave_rest))]
     assert np.nanmax(np.abs(_pull(fit, CONTINUUM))) < MAX_PULL
-
-
-def test_grow_width_rejects_neighbours_in_angstrom():
-    line = Line("X", 5000.0, 0.3, 1e8)
-    spectrum = _noisy(WAVE, CONTINUUM, [Absorber("X", 0.0, 14.0, 60.0, [line])])
-    grow_width = 3.0
-    fit = fit_continuum(spectrum, ContinuumSettings(grow_width=grow_width))
-    near_line = np.abs(WAVE - line.wave_rest) <= grow_width
-    assert not fit.used[near_line].any()
 
 
 def test_continuum_matches_returned_mask_when_not_converged():
@@ -149,7 +145,9 @@ def test_zero_error_rejected():
 def test_blackbody_continuum_recovered_away_from_ends():
     true_continuum = _blackbody_shape(SDSS_WAVE, A_STAR_TEMPERATURE)
     fit = fit_continuum(_noisy(SDSS_WAVE, true_continuum, seed=2))
-    inner = (SDSS_WAVE > SDSS_WAVE[0] + END_MARGIN) & (SDSS_WAVE < SDSS_WAVE[-1] - END_MARGIN)
+    inner = (SDSS_WAVE > SDSS_WAVE[0] + END_MARGIN) & (
+        SDSS_WAVE < SDSS_WAVE[-1] - END_MARGIN
+    )
     assert np.nanmax(np.abs(_pull(fit, true_continuum))[inner]) < MAX_PULL
     # At the ends the spline has data on one side only: larger error
     relative_error = fit.error / true_continuum

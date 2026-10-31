@@ -10,13 +10,6 @@ in cm^-2 (log10 N in outputs).
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy import constants as _const
-
-C_KMS = _const.c * 1e-3  # speed of light, km/s
-ANGSTROM_TO_CM = 1e-8
-KMS_TO_CMS = 1e5
-# FWHM of a Gaussian in units of its sigma
-FWHM_PER_SIGMA = 2 * np.sqrt(2 * np.log(2))
 
 
 @dataclass
@@ -34,8 +27,8 @@ class Spectrum:
     continuum : array, optional
         Continuum level at each wavelength, filled in by `continuum`.
     meta : dict
-        Free-form metadata, filled in by the readers in `io`. Keys
-        used so far (all optional):
+        Free-form metadata, filled in by `sdss_reader` and
+        `synthetic_spectrum`. Keys used so far (all optional):
         instrument, source, obs_id -- provenance;
         ra, dec (deg), mjd, exptime (s) -- observation;
         wave_frame, flux_unit -- conventions;

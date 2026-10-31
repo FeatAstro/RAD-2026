@@ -47,6 +47,7 @@ data/*
 
 # Teachers' material (not ours to redistribute)
 Projects.pdf
+Slides-*.pdf
 docs/
 
 # Personal working notes (not shared with the team)

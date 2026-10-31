@@ -12,12 +12,12 @@ lines. The detection code takes a sign option so that emission spectra
 later.
 
 ## Pipeline
-1. **Read** a real spectrum (MAST / SDSS) -- done (`io`)
+1. **Read** a real spectrum (MAST / SDSS) -- done (`mast_archive`, `sdss_reader`)
 2. **Fit and remove the continuum** -- done (`continuum`)
 3. **Detect** the significant dips -> table of features -- to do (`detect.find_features`)
-4. **Identify** them with a "comb" per species -- to do (`linelist`, `detect.identify`)
-5. **Measure** their equivalent widths -- done (`ew`), continuum error still to add
-6. **Curve of growth**: N and b per species -- done (`cog`)
+4. **Identify** them with a "comb" per species -- to do (`line_list`, `detect.identify`)
+5. **Measure** their equivalent widths -- done (`equivalent_width`), continuum error still to add
+6. **Curve of growth**: N and b per species -- done (`curve_of_growth`)
 
 ### How identification works (the comb)
 A Doppler shift or a redshift multiplies every wavelength by the same
@@ -42,7 +42,7 @@ and the matched dips are removed before the next one.
 - **Main spectrum**: the A0 star SDSS J172637.24+264127.6 (SDSS
   2182-53905-0101; 3810-9210 A, vacuum wavelengths, 69 km/s pixels,
   resolution R ~ 2000, S/N ~ 60). Downloaded with
-  `io.query_mast` / `io.download_mast_spectra` into `data/mast/`
+  `mast_archive.query_mast` / `mast_archive.download_mast_spectra` into `data/mast/`
   (gitignored: run `notebooks/MAST_query.ipynb` once). Expected lines:
   Balmer and Paschen series, CaII H&K and 8498/8542/8662 triplet,
   MgII 4481, OI 7772-7775, NaD (probably interstellar), many weak Fe
@@ -53,7 +53,9 @@ and the matched dips are removed before the next one.
 
 ## Layout
 ```
-spectral_diag/   Python package (io, continuum, linelist, detect, ew, profiles, cog, uncertainty, viz)
+spectral_diag/   Python package (constants, data_classes, sdss_reader, mast_archive, synthetic_spectrum,
+                 continuum, detect, line_list, line_profiles, equivalent_width,
+                 curve_of_growth, uncertainty, plots)
 tests/           pytest suite (synthetic checks), run with `pytest`
 notebooks/       Demonstrations and validation
 figures/         Reference and illustration images used by the notebooks
@@ -61,11 +63,11 @@ data/            Small example spectra
 Projects.pdf     Project statement
 ```
 Current structure: `spectral_diag/` has the package skeleton (shared
-`Spectrum`/`Line`/`Absorber` classes in `core.py`, one stub module per
-planned component). Implemented so far: `profiles` (Gaussian and Voigt
-optical depth), `ew`, `io` (synthetic spectra, MAST query/download,
-SDSS reader), `continuum`, `linelist` (CIV, SiII, FeII)
-and `cog` (see Progress log below).
+`Spectrum`/`Line`/`Absorber` classes in `data_classes.py`, one stub module per
+planned component). Implemented so far: `line_profiles` (Gaussian and Voigt
+optical depth), `equivalent_width`, `synthetic_spectrum`, `mast_archive`,
+`sdss_reader`, `continuum`, `line_list` (CIV, SiII, FeII)
+and `curve_of_growth` (see Progress log below).
 
 ## Installation
 ```bash
@@ -95,7 +97,7 @@ Details and interface in `Work_split.pdf`.
 - **Pablo** (data -> lines): `detect.find_features` (detection of
   significant dips, merging, significance), plot of the detected
   features, telluric masks; later NIST queries for the line list.
-- **Gael** (lines -> physics): `linelist` (Rydberg hydrogen comb +
+- **Gael** (lines -> physics): `line_list` (Rydberg hydrogen comb +
   table of common species with f-values), `detect.identify` (comb scan,
   scoring, strength-ratio checks), continuum error in `measure_ew`,
   curve of growth on the identified lines.
@@ -107,7 +109,7 @@ Details and interface in `Work_split.pdf`.
 ## Progress log
 - Package skeleton (`spectral_diag/`), shared `Spectrum`/`Line`/`Absorber`
   classes, `pyproject.toml` for `pip install -e .`.
-- `profiles.py`: `optical_depth_gaussian(wave, line, logN, b, z)` --
+- `line_profiles.py`: `optical_depth_gaussian(wave, line, logN, b, z)` --
   Doppler-only (no damping wings) optical depth for a single
   transition, as a stepping stone to the full Voigt profile.
   `tau(lambda) = tau0 * exp(-(dv/b)^2)`, with `dv` the velocity offset
@@ -121,7 +123,7 @@ Details and interface in `Work_split.pdf`.
   deepening, only wings keep growing -- this is why the curve of
   growth later is not a straight line), and broadening/shallowing
   with b.
-- `profiles.py`: added `voigt(x, a)` (`Re[scipy.special.wofz(x + i*a)]`)
+- `line_profiles.py`: added `voigt(x, a)` (`Re[scipy.special.wofz(x + i*a)]`)
   and `optical_depth(wave, line, logN, b, z)` -- the full Voigt optical
   depth, adding the Lorentzian/damping term (`line.gamma`) on top of
   the Gaussian term, via the damping parameter
@@ -132,7 +134,7 @@ Details and interface in `Work_split.pdf`.
   (logN=17) keeps non-negligible optical depth far in the wings where
   the Gaussian-only version has already dropped to ~0 -- the damping
   wings `optical_depth_gaussian` cannot capture.
-- `ew.py`: `measure_ew(wave, flux, continuum, error=None, wave_min=None,
+- `equivalent_width.py`: `measure_ew(wave, flux, continuum, error=None, wave_min=None,
   wave_max=None)` -- equivalent width via trapezoidal integration of
   `1 - flux/continuum` over an optional wavelength window, with error
   propagation from per-pixel flux uncertainties (assumes the continuum
@@ -140,13 +142,13 @@ Details and interface in `Work_split.pdf`.
   EW formula (`W = pi * r_e * N * f * lambda_rest^2`, independent of b)
   on a weak synthetic line: numeric integral matches analytic formula
   to 0.08%.
-- `io.py`: `make_synthetic(wave, absorbers, continuum=1.0, snr=None, rng=None)`
+- `synthetic_spectrum.py`: `make_synthetic(wave, absorbers, continuum=1.0, snr=None, rng=None)`
   -- builds a `Spectrum` from a list of `Absorber`s (summing tau over
   all their lines -- exact, not an approximation, since transmissions
   multiply and optical depths add). `snr=None` gives a noise-free
   spectrum (`error=0`, for checking against closed-form truth);
   `snr=<value>` adds Gaussian noise at a constant level relative to
-  the continuum. No LSF convolution yet (`profiles.apply_lsf` doesn't
+  the continuum. No LSF convolution yet (`line_profiles.apply_lsf` doesn't
   exist), so this is the intrinsic model spectrum, not yet a realistic
   stand-in for a specific instrument.
   Validated end-to-end: (1) noise-free weak-line spectrum's EW matches
@@ -177,12 +179,12 @@ Details and interface in `Work_split.pdf`.
   re-embedded in each -- avoids duplicating ~400KB of images per
   notebook. Going forward, notebooks are organized by validation
   theme rather than 1:1 per function.
-- `linelist.py`: `get_lines(species)` returns the tabulated lines of
+- `line_list.py`: `get_lines(species)` returns the tabulated lines of
   CIV (2), SiII (6) or FeII (7) as `Line` objects. Wavelengths and f
   are from Verner, Verner & Ferland 1996 (arXiv:atom-ph/9604003);
   gamma is the sum of the tabulated A values over the listed decays of
   the upper level.
-- `cog.py`: `theoretical_ew(line, logN, b, z=0.0)` integrates
+- `curve_of_growth.py`: `theoretical_ew(line, logN, b, z=0.0)` integrates
   `1 - exp(-tau)` over the Voigt profile in the variable `x = dv/b`,
   so it is valid in all three regimes. `fit_cog(lines, ews, z=0.0)`
   fits (logN, b) by weighted least squares to measured EWs given as a
@@ -208,8 +210,8 @@ Details and interface in `Work_split.pdf`.
   NGC 7662 and NGC 7027 (see Data above).
 - First real spectrum: before the planetary nebulae, the absorption
   chain is tested on the A0 star SDSS J172637.24+264127.6 (SDSS
-  2182-53905-0101, 3810-9210 A, R ~ 2000, S/N 62). `io.query_mast`,
-  `io.download_mast_spectra` and `io.read_sdss_spec` (Pablo) fetch and
+  2182-53905-0101, 3810-9210 A, R ~ 2000, S/N 62). `mast_archive.query_mast`,
+  `mast_archive.download_mast_spectra` and `sdss_reader.read_sdss_spec` (Pablo) fetch and
   read it (`notebooks/MAST_query.ipynb`); a pytest suite (`tests/`)
   automates the earlier notebook checks.
 - `continuum.py`: `fit_continuum(spectrum, knot_spacing=250, k_low=2,
@@ -236,5 +238,14 @@ Details and interface in `Work_split.pdf`.
   species (wavelength ratios fixed by atomic physics) checked by
   strength ratios. Split: Pablo on detection, Gael on line list and
   identification (see Team).
-- Next: `detect.find_features` (Pablo), `linelist` Rydberg comb and
+- Next: `detect.find_features` (Pablo), `line_list` Rydberg comb and
   `detect.identify` (Gael).
+- Oct 31 (Gael): simpler code. Modules renamed to say what they do:
+  `core` -> `constants` + `data_classes`; `io` -> `sdss_reader`,
+  `mast_archive`, `synthetic_spectrum`; `linelist` -> `line_list`;
+  `profiles` -> `line_profiles`; `ew` -> `equivalent_width`; `cog` ->
+  `curve_of_growth`; `viz` -> `plots`. `continuum` keeps only the cut
+  below the fit (the upper cut, mask growing and cycle detection
+  changed nothing on the star); `curve_of_growth` split into small
+  functions with full names. The two continuum notebooks are merged
+  into `05_continuum.ipynb`.
