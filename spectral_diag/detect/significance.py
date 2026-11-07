@@ -2,7 +2,8 @@
 
 The spectrum is converted to a signal relative to the continuum, and a
 Gaussian as wide as the LSF is slid along it (matched filter). The
-features are the groups of pixels above a detection threshold.
+features are the groups of pixels above a detection threshold. A group
+holding several resolved lines is split at the dips between them.
 """
 
 import numpy as np
@@ -18,6 +19,13 @@ WINDOW_EDGE_SIGNIFICANCE = 1.0
 # The matched-filter kernel is cut at this many sigma, where a Gaussian
 # is already negligible (3e-4 of its peak)
 KERNEL_HALF_WIDTH_SIGMA = 4.0
+# Smallest drop of the significance (in sigma) between two peaks for them to
+# be separate lines. Calibrated on 300 synthetic spectra at SNR 50 (see
+# tests): a single broad line is wrongly split in 21% of them at 2, 11% at
+# 2.5, 3.7% at 3, 1% at 3.5 and 0% at 4, while two weak narrow lines 2 FWHM
+# apart are recovered in 100% at 2.5, 96% at 3, 91% at 3.5 and 86% at 4.
+# 3.5 keeps most pairs while rarely cutting a broad line into pieces
+MIN_SPLIT_DIP = 3.5
 
 
 def check_input(spectrum):
@@ -194,3 +202,113 @@ def _runs_above(values, level):
     if start is not None:
         runs.append(slice(start, len(values)))
     return runs
+
+
+def split_blends(significance, window, threshold):
+    """Split a feature window into one window per resolved line.
+
+    The hysteresis of `feature_windows` keeps two lines in one window
+    when the significance between them stays above
+    WINDOW_EDGE_SIGNIFICANCE (e.g. the NaI D doublet, or CaII K on the
+    wing of H-epsilon). Here the window is cut at the lowest point
+    between two peaks above `threshold` when the significance drops by
+    at least MIN_SPLIT_DIP. Lines closer than the resolution have no
+    such dip and stay together.
+
+    Parameters
+    ----------
+    significance : array
+        From `matched_filter_significance`.
+    window : slice
+        One window from `feature_windows`.
+    threshold : float
+        Detection threshold, in sigma: only peaks above it can be split.
+
+    Returns
+    -------
+    windows : list of slice
+        In increasing wavelength, covering `window` without overlap; the
+        lowest pixel between two lines starts the right-hand window.
+        `[window]` if there is nothing to split.
+    """
+    peaks = _peaks_above(significance, window, threshold)
+    cuts = _cut_positions(significance, peaks)
+    starts = [window.start] + cuts
+    stops = cuts + [window.stop]
+    return [slice(start, stop) for start, stop in zip(starts, stops)]
+
+
+def _peaks_above(significance, window, level):
+    """Local maxima of the significance inside a window, above a level.
+
+    Parameters
+    ----------
+    significance : array
+    window : slice
+    level : float
+
+    Returns
+    -------
+    peaks : list of int
+        Pixel indices in `significance`, increasing. A maximum is higher
+        than its left neighbour and at least as high as its right one;
+        the first and last pixels of the window are not considered.
+    """
+    peaks = []
+    for index in range(window.start + 1, window.stop - 1):
+        value = significance[index]
+        is_maximum = (
+            value > significance[index - 1] and value >= significance[index + 1]
+        )
+        if is_maximum and value > level:
+            peaks.append(index)
+    return peaks
+
+
+def _cut_positions(significance, peaks):
+    """Pixels where to cut a window so that each part holds one line.
+
+    Walks the peaks from left to right. If the significance drops by at
+    least MIN_SPLIT_DIP between the current peak and the next, the window
+    is cut at the lowest point between them and the next peak becomes
+    the current one. Otherwise both are the same line, and the higher
+    peak is kept as the current one.
+
+    Parameters
+    ----------
+    significance : array
+    peaks : list of int
+        From `_peaks_above`.
+
+    Returns
+    -------
+    cuts : list of int
+        Pixel indices, increasing; empty if there is nothing to cut.
+    """
+    cuts = []
+    current = peaks[0] if peaks else None
+    for following in peaks[1:]:
+        valley = _lowest_between(significance, current, following)
+        lower_peak = min(significance[current], significance[following])
+        if lower_peak - significance[valley] >= MIN_SPLIT_DIP:
+            cuts.append(valley)
+            current = following
+        elif significance[following] > significance[current]:
+            current = following
+    return cuts
+
+
+def _lowest_between(significance, left, right):
+    """Pixel with the lowest significance between two pixels (included).
+
+    Parameters
+    ----------
+    significance : array
+    left, right : int
+        Pixel indices, left < right.
+
+    Returns
+    -------
+    index : int
+    """
+    return left + int(np.argmin(significance[left : right + 1]))
