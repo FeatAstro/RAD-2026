@@ -152,6 +152,9 @@ def matched_filter_significance(signal, inverse_variance, kernel):
     return np.where(inverse_variance > 0, significance, 0.0)
 
 
+# TODO: cut windows at gaps in the data (wavelength step of several median
+# steps), and check the matched filter near the gap edges: on the A0 star the
+# window 8640-8794 A spans a 120 A gap of pixels dropped by read_sdss_spec
 def feature_windows(significance, threshold):
     """Pixel ranges of the features, by two thresholds (hysteresis).
 
