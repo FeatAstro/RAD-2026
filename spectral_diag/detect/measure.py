@@ -5,8 +5,6 @@ atomic data. The physical Voigt fit (optical_depth + InstrumentGrid, with
 N, b, z free) belongs to a later stage, on the identified lines.
 """
 
-from dataclasses import replace
-
 import numpy as np
 from scipy.optimize import curve_fit
 
@@ -35,7 +33,7 @@ def measure_feature(spectrum, window, sign):
         The centre comes from a Gaussian fit (see `_fit_centre`), the depth
         is that of the deepest pixel, the EW is over the whole window.
     """
-    feature = _cut(spectrum, window)
+    feature = spectrum.cut(window)
     signal, _ = relative_signal(feature, sign)
     centre, centre_err = _fit_centre(feature, sign)
     raw_ew, ew_err = measure_ew(
@@ -53,31 +51,6 @@ def measure_feature(spectrum, window, sign):
         "ew_err": ew_err,
         "snr": ew / ew_err,
     }
-
-
-def _cut(spectrum, window):
-    """The pixels `window` of `spectrum`, as a new Spectrum.
-
-    Parameters
-    ----------
-    spectrum : Spectrum
-        With `continuum` set.
-    window : slice
-        Pixels to keep.
-
-    Returns
-    -------
-    cut : Spectrum
-        `wave`, `flux`, `error` and `continuum` restricted to `window`;
-        `meta` is shared with `spectrum`.
-    """
-    return replace(
-        spectrum,
-        wave=spectrum.wave[window],
-        flux=spectrum.flux[window],
-        error=spectrum.error[window],
-        continuum=spectrum.continuum[window],
-    )
 
 
 def _gaussian(wave, amplitude, centre, sigma):

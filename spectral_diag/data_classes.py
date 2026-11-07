@@ -7,7 +7,7 @@ Units: wavelengths in Angstrom, velocities in km/s, column densities
 in cm^-2 (log10 N in outputs).
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -63,6 +63,30 @@ class Spectrum:
         # Written as "not > 0" so that NaN errors are caught too
         if np.any(~(self.error > 0)):
             raise ValueError("error must be positive at every pixel")
+
+    def cut(self, window):
+        """The pixels `window` as a new Spectrum (`meta` shared).
+
+        Parameters
+        ----------
+        window : slice
+            Pixel range to keep.
+
+        Returns
+        -------
+        cut : Spectrum
+            `continuum` is cut too when set, and stays None otherwise.
+        """
+        continuum = None
+        if self.continuum is not None:
+            continuum = self.continuum[window]
+        return replace(
+            self,
+            wave=self.wave[window],
+            flux=self.flux[window],
+            error=self.error[window],
+            continuum=continuum,
+        )
 
 
 @dataclass(frozen=True)
