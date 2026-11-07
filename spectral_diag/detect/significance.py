@@ -20,10 +20,10 @@ WINDOW_EDGE_SIGNIFICANCE = 1.0
 # is already negligible (3e-4 of its peak)
 KERNEL_HALF_WIDTH_SIGMA = 4.0
 # Smallest drop of the significance (in sigma) between two peaks for them to
-# be separate lines. Calibrated on 300 synthetic spectra at SNR 50 (see
-# tests): a single broad line is wrongly split in 21% of them at 2, 11% at
-# 2.5, 3.7% at 3, 1% at 3.5 and 0% at 4, while two weak narrow lines 2 FWHM
-# apart are recovered in 100% at 2.5, 96% at 3, 91% at 3.5 and 86% at 4.
+# be separate lines. Calibrated on 300 synthetic spectra at SNR 50 (as in
+# tests/test_detect.py): a single broad line is wrongly split in 21% of them
+# at 2, 11% at 2.5, 3.7% at 3, 1% at 3.5 and 0% at 4, while two weak narrow
+# lines 6 A (2.5 FWHM) apart are separated in 94%, 93%, 90%, 85% and 78%.
 # 3.5 keeps most pairs while rarely cutting a broad line into pieces
 MIN_SPLIT_DIP = 3.5
 
