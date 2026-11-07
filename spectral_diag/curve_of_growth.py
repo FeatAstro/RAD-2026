@@ -14,7 +14,7 @@ import numpy as np
 from scipy.integrate import quad
 from scipy.optimize import least_squares
 
-from .constants import C_KMS
+from . import constants
 from .line_profiles import A_CONST, TAU0_CONST, voigt
 
 # Coarse (logN, b) grid that gives the starting points of the fit
@@ -83,7 +83,7 @@ def _single_cloud_ew(line, logN, b, z):
     """
     central_optical_depth = TAU0_CONST * 10**logN * line.f * line.wave_rest / b
     damping_parameter = A_CONST * line.gamma * line.wave_rest / b
-    doppler_width = line.wave_rest * b / C_KMS
+    doppler_width = line.wave_rest * b / constants.C_KMS
     reduced_width = _reduced_ew(central_optical_depth, damping_parameter)
     return float(2 * doppler_width * (1 + z) * reduced_width)
 
@@ -319,5 +319,5 @@ def ew_linear(line, logN):
         * column_density
         * line.f
         * line.wave_rest**2
-        / C_KMS
+        / constants.C_KMS
     )

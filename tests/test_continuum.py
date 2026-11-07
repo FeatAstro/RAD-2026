@@ -6,7 +6,7 @@ Wavelengths in Angstrom.
 
 import numpy as np
 import pytest
-from scipy import constants
+from scipy import constants as scipy_constants
 
 from spectral_diag.continuum import (
     ContinuumSettings,
@@ -14,7 +14,7 @@ from spectral_diag.continuum import (
     fit_continuum,
     normalise,
 )
-from spectral_diag.constants import C_KMS
+from spectral_diag import constants
 from spectral_diag.data_classes import Absorber, Line, Spectrum
 from spectral_diag.equivalent_width import measure_ew
 from spectral_diag.synthetic_spectrum import make_synthetic
@@ -30,7 +30,9 @@ MAX_PULL = 4.0
 # SDSS-like spectrum of an A star: constant 69 km/s pixels and a
 # blackbody continuum at 8500 K
 SDSS_PIXEL_KMS = 69.0
-SDSS_WAVE = 3800.0 * np.exp(np.arange(0.0, np.log(9200 / 3800), SDSS_PIXEL_KMS / C_KMS))
+SDSS_WAVE = 3800.0 * np.exp(
+    np.arange(0.0, np.log(9200 / 3800), SDSS_PIXEL_KMS / constants.C_KMS)
+)
 A_STAR_TEMPERATURE = 8500.0
 END_MARGIN = 50.0
 
@@ -59,7 +61,12 @@ def _blackbody_shape(wave, temperature):
     """
     lam = wave * 1e-10
     planck = 1 / (
-        lam**5 * np.expm1(constants.h * constants.c / (lam * constants.k * temperature))
+        lam**5
+        * np.expm1(
+            scipy_constants.h
+            * scipy_constants.c
+            / (lam * scipy_constants.k * temperature)
+        )
     )
     return 1000 * planck / planck.max()
 
