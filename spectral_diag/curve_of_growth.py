@@ -11,21 +11,11 @@ instrumental broadening.
 """
 
 import numpy as np
+from scipy.integrate import quad
 from scipy.optimize import least_squares
 
 from .constants import C_KMS
 from .line_profiles import A_CONST, TAU0_CONST, voigt
-
-# Beyond this many Doppler widths from the centre the Gaussian core is
-# negligible (exp(-64)) and only the Lorentzian wing a / (sqrt(pi) x^2)
-# remains
-CORE_HALF_WIDTH = 8.0
-# Number of integration points across the core, and in the far wing
-CORE_POINTS = 801
-WING_POINTS = 600
-# The numerical integral stops where the wing optical depth falls below
-# this; the rest of the wing is added analytically
-WING_END_OPTICAL_DEPTH = 1e-3
 
 # Coarse (logN, b) grid that gives the starting points of the fit
 GRID_STEP_LOGN = 0.5
@@ -114,43 +104,34 @@ def _reduced_ew(central_optical_depth, damping_parameter):
         Equivalent width in units of the Doppler width lambda_rest b / c,
         for half of the line (x >= 0).
     """
-    # Far from the core the optical depth is wing_strength / x^2
-    wing_strength = central_optical_depth * damping_parameter / np.sqrt(np.pi)
-    offsets = _integration_offsets(wing_strength)
-    optical_depth = central_optical_depth * voigt(offsets, damping_parameter)
-    # -expm1(-tau) is 1 - exp(-tau), but stays accurate when tau is tiny
-    absorbed_fraction = -np.expm1(-optical_depth)
-    integral = np.trapezoid(absorbed_fraction, offsets)
-    # Beyond the last offset tau << 1, so 1 - exp(-tau) is tau itself, and
-    # the integral of wing_strength / x^2 from there to infinity is:
-    remaining_wing = wing_strength / offsets[-1]
-    return integral + remaining_wing
+    reduced_width, _ = quad(
+        _absorbed_fraction,
+        0.0,
+        np.inf,
+        args=(central_optical_depth, damping_parameter),
+    )
+    return reduced_width
 
 
-def _integration_offsets(wing_strength):
-    """Offsets x = dv / b at which the line profile is integrated.
-
-    Evenly spaced over the core; for damped lines, extended with
-    logarithmically spaced points out to where the wing optical depth
-    falls to WING_END_OPTICAL_DEPTH.
+def _absorbed_fraction(offset, central_optical_depth, damping_parameter):
+    """Fraction of the light absorbed, 1 - exp(-tau), at one offset.
 
     Parameters
     ----------
-    wing_strength : float
-        tau0 * a / sqrt(pi), so that tau = wing_strength / x^2 in the wing.
+    offset : float
+        x = dv / b, distance from the line centre in Doppler widths.
+    central_optical_depth : float
+        tau0.
+    damping_parameter : float
+        a.
 
     Returns
     -------
-    offsets : array
-        Increasing, from 0.
+    absorbed_fraction : float
     """
-    core_offsets = np.linspace(0.0, CORE_HALF_WIDTH, CORE_POINTS)
-    wing_end = np.sqrt(wing_strength / WING_END_OPTICAL_DEPTH)
-    if wing_end <= CORE_HALF_WIDTH:
-        return core_offsets
-    wing_offsets = np.geomspace(CORE_HALF_WIDTH, wing_end, WING_POINTS)
-    # The first wing offset equals the last core offset: skip it
-    return np.concatenate([core_offsets, wing_offsets[1:]])
+    optical_depth = central_optical_depth * voigt(offset, damping_parameter)
+    # -expm1(-tau) is 1 - exp(-tau), but stays accurate when tau is tiny
+    return -np.expm1(-optical_depth)
 
 
 def fit_cog(lines, ews, z=0.0, logN_bounds=(10.0, 22.0), b_bounds=(1.0, 200.0)):

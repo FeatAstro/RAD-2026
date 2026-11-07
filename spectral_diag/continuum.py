@@ -1,21 +1,16 @@
 """Continuum fitting and normalisation.
 
-- fit_continuum: cubic spline fitted to the unabsorbed flux level, by
-  iterative sigma clipping below the fit, with its statistical error.
-  Needs no line list: the pixels clipped below the fit mark candidate
-  absorption (plus a few noise pixels)
-- normalise: divide a Spectrum's flux/error by the fitted continuum
-
-Written for absorption spectra: absorption only removes flux, so only
-pixels far below the fit are rejected.
+The continuum is a cubic spline fitted by least squares to the pixels
+that are not in a line. Lines are found by sigma clipping: pixels more
+than `clip_low` errors below the fit are rejected, the spline is
+refitted, and so on until the set of used pixels stops changing. Only
+pixels below the fit are rejected, because absorption only removes
+flux.
 """
 
-# TODO: for Doppler-broadened lines (quasar absorbers, ISM, 21 cm), give
-# knot_spacing in km/s and place knots uniformly in ln(lambda), since
-# dlambda / lambda = dv / c. A fixed spacing in Angstrom is relatively
-# stiffer in the blue and looser in the red, because the same b gives
-# lines that widen as lambda grows. Not needed for the A0 star: 250 A is
-# far wider than any line over the whole SDSS range.
+# TODO: for Doppler-broadened lines (quasar absorbers, 21 cm), give
+# knot_spacing in km/s instead of Angstrom, since a line of given b
+# gets wider in Angstrom as lambda grows. Not needed for the A0 star.
 
 import warnings
 from dataclasses import dataclass, replace
@@ -25,27 +20,23 @@ from scipy.interpolate import BSpline, make_lsq_spline
 
 # Cubic spline: smooth up to the second derivative
 SPLINE_DEGREE = 3
-# Fewest fitted pixels allowed between two knots; below this the cubic
-# in that interval is poorly constrained, so the interval is merged.
-# Heuristic margin (~2-3x the 4 local cubic coefficients); the exact
-# value matters little at the default knot spacing (~125-280 pixels
-# per interval on SDSS)
+# Fewest used pixels allowed between two knots: the 4 coefficients of
+# the cubic in that interval must be well constrained
 MIN_PIXELS_PER_INTERVAL = 10
 
 
 @dataclass(frozen=True)
 class ContinuumSettings:
-    """Parameters of the sigma-clipped spline continuum fit.
+    """Parameters of the continuum fit.
 
     Attributes
     ----------
     knot_spacing : float
-        Approximate distance between spline knots, Angstrom. Must be
-        wider than the broadest absorption line, or the spline follows
-        it; too wide and it cannot follow the continuum shape. Choose it
-        by comparing fits with several spacings.
+        Distance between spline knots, Angstrom. Wider than the broadest
+        line, or the spline follows it; narrow enough to follow the
+        shape of the continuum.
     clip_low : float
-        Pixels more than clip_low sigma below the fit are rejected.
+        Pixels more than clip_low errors below the fit are rejected.
     max_iter : int
         Maximum number of fit-and-clip iterations.
     """
@@ -62,18 +53,16 @@ class ContinuumFit:
     Attributes
     ----------
     continuum : array
-        Continuum level at every pixel, units of the flux. NaN beyond
-        the first and last used pixel, where it is unconstrained.
+        Continuum at every pixel, units of the flux. NaN beyond the first
+        and last used pixel, where the spline is not constrained.
     error : array
-        1-sigma statistical error of `continuum`, correlated between
-        neighbouring pixels. NaN where `continuum` is.
+        1-sigma statistical error of `continuum`. NaN where it is.
     used : array of bool
-        Pixels used in the final fit (not clipped).
+        Pixels used in the final fit.
     n_iter : int
         Fit-and-clip iterations done.
     status : str
-        "converged" (the set of used pixels stopped changing) or
-        "max_iter" (still changing after max_iter iterations).
+        "converged" (the used pixels stopped changing) or "max_iter".
     """
 
     continuum: np.ndarray
@@ -85,12 +74,6 @@ class ContinuumFit:
 
 def fit_continuum(spectrum, settings=ContinuumSettings()):
     """Fit the continuum of `spectrum` by iterative sigma clipping.
-
-    Fits a weighted cubic spline to the used pixels, rejects those more
-    than clip_low sigma below it, and refits until the set of used
-    pixels stops changing. Every pixel is tested against each new fit,
-    so pixels rejected earlier can come back: the first fits run through
-    the lines, below the true continuum, and rise step by step to it.
 
     Parameters
     ----------
@@ -104,14 +87,14 @@ def fit_continuum(spectrum, settings=ContinuumSettings()):
     """
     _check_input(spectrum)
     used, n_iter, status = _clip_until_stable(spectrum, settings)
-    # The clipping loop can stop right after updating the mask: refit
-    # so that continuum and mask always match
     spline = _weighted_spline(spectrum, used, settings.knot_spacing)
-    inside = _inside_used_range(spectrum.wave, used)
-    continuum = np.full(spectrum.wave.shape, np.nan)
+
+    used_wave = spectrum.wave[used]
+    inside = (spectrum.wave >= used_wave[0]) & (spectrum.wave <= used_wave[-1])
+    continuum = np.full(len(spectrum.wave), np.nan)
+    error = np.full(len(spectrum.wave), np.nan)
     continuum[inside] = spline(spectrum.wave[inside])
-    error = np.full(spectrum.wave.shape, np.nan)
-    error[inside] = _spline_error(spline, spectrum, used, inside)
+    error[inside] = _continuum_error(spline, spectrum, used, spectrum.wave[inside])
     return ContinuumFit(continuum, error, used, n_iter, status)
 
 
@@ -122,13 +105,13 @@ def normalise(spectrum, continuum):
     ----------
     spectrum : Spectrum
     continuum : array
-        Continuum level at every pixel, e.g. `ContinuumFit.continuum`.
+        e.g. `ContinuumFit.continuum`.
 
     Returns
     -------
     normalised : Spectrum
-        Flux and error relative to the continuum, which becomes 1. The
-        error does not include the uncertainty of the continuum.
+        Flux and error divided by the continuum, which becomes 1. The
+        error does not include the error of the continuum.
     """
     return replace(
         spectrum,
@@ -153,7 +136,11 @@ def _check_input(spectrum):
 
 
 def _clip_until_stable(spectrum, settings):
-    """Refit and reclip, starting from all pixels, until the mask stops changing.
+    """Fit, reject the pixels far below the fit, and repeat until stable.
+
+    Every pixel is tested against each new fit, so pixels rejected
+    earlier can come back: the first fits run through the lines, below
+    the true continuum, and rise step by step to it.
 
     Parameters
     ----------
@@ -163,254 +150,150 @@ def _clip_until_stable(spectrum, settings):
     Returns
     -------
     used : array of bool
+        Pixels used in the last fit.
     n_iter : int
     status : str
-        "converged" or "max_iter", see `ContinuumFit`.
+        "converged" or "max_iter".
     """
-    used = np.ones(spectrum.wave.shape, dtype=bool)
+    used = np.ones(len(spectrum.wave), dtype=bool)
     for n_iter in range(1, settings.max_iter + 1):
-        new_used = _pixels_not_below_fit(spectrum, settings, used)
+        spline = _weighted_spline(spectrum, used, settings.knot_spacing)
+        # Evaluated at every pixel, also beyond the used ones, so that
+        # pixels rejected at the ends can come back
+        deviation = (spectrum.flux - spline(spectrum.wave)) / spectrum.error
+        new_used = deviation >= -settings.clip_low
         if np.array_equal(new_used, used):
             return used, n_iter, "converged"
         used = new_used
-    warnings.warn(
-        f"continuum fit not converged after {settings.max_iter} iterations",
-        stacklevel=3,
-    )
+    warnings.warn(f"continuum fit not converged after {settings.max_iter} iterations")
     return used, settings.max_iter, "max_iter"
 
 
-def _pixels_not_below_fit(spectrum, settings, used):
-    """Fit the `used` pixels; True for every pixel not clip_low sigma below the fit.
-
-    The spline is evaluated (extrapolated) at every pixel here, not
-    only inside the used range: otherwise pixels clipped at the ends
-    would get no continuum to be tested against and never come back.
-
-    Parameters
-    ----------
-    spectrum : Spectrum
-    settings : ContinuumSettings
-    used : array of bool
-
-    Returns
-    -------
-    new_used : array of bool
-    """
-    spline = _weighted_spline(spectrum, used, settings.knot_spacing)
-    deviation = (spectrum.flux - spline(spectrum.wave)) / spectrum.error
-    return deviation >= -settings.clip_low
-
-
 def _weighted_spline(spectrum, used, knot_spacing):
-    """Least-squares cubic spline through the `used` pixels, 1/sigma weights.
+    """Least-squares cubic spline through the used pixels, weighted by 1/error.
 
     Parameters
     ----------
     spectrum : Spectrum
     used : array of bool
-        Pixels entering the fit.
     knot_spacing : float
         Angstrom.
 
     Returns
     -------
     spline : scipy.interpolate.BSpline
-        Constrained only inside the range of the used pixels.
     """
     wave = spectrum.wave[used]
-    return make_lsq_spline(
-        wave,
-        spectrum.flux[used],
-        _knot_vector(wave, knot_spacing),
-        k=SPLINE_DEGREE,
-        w=1 / spectrum.error[used],
-    )
+    knots = _knots(wave, knot_spacing)
+    weights = 1 / spectrum.error[used]
+    return make_lsq_spline(wave, spectrum.flux[used], knots, SPLINE_DEGREE, weights)
 
 
-def _knot_vector(wave, knot_spacing):
-    """Full knot vector: evenly spaced, with sparse intervals merged.
+def _knots(wave, knot_spacing):
+    """Knots about `knot_spacing` apart, from wave[0] to wave[-1].
 
-    A least-squares spline needs enough fitted pixels between its knots
-    (Schoenberg-Whitney condition, and a well-constrained cubic). While
-    some interval holds fewer than MIN_PIXELS_PER_INTERVAL pixels (most
-    clipped in a broad line), one of its knots is dropped, so that
-    interval merges with its neighbour and the spline bridges the gap.
+    Starts from evenly spaced knots. While two knots enclose fewer than
+    MIN_PIXELS_PER_INTERVAL used pixels (e.g. inside a broad line whose
+    pixels were all rejected), one of them is removed, so the spline
+    bridges the gap. A B-spline needs its two end knots repeated
+    SPLINE_DEGREE + 1 times.
 
     Parameters
     ----------
     wave : array
-        Sorted wavelengths of the fitted pixels, Angstrom.
+        Sorted wavelengths of the used pixels, Angstrom.
     knot_spacing : float
         Angstrom.
 
     Returns
     -------
     knots : array
-        Interior knots plus SPLINE_DEGREE + 1 repeated end knots at
-        wave[0] and wave[-1].
     """
     first, last = wave[0], wave[-1]
     n_intervals = max(1, round((last - first) / knot_spacing))
-    evenly_spaced = np.linspace(first, last, n_intervals + 1)
-    interior_knots = list(evenly_spaced[1:-1])
+    interior_knots = list(np.linspace(first, last, n_intervals + 1)[1:-1])
     sparse_interval = _first_sparse_interval(wave, interior_knots)
     while sparse_interval is not None:
-        interior_knots.pop(_knot_to_remove(sparse_interval, interior_knots))
+        # Interval i ends at interior knot i, except the last interval,
+        # which ends at wave[-1]
+        if sparse_interval == len(interior_knots):
+            # No knot on its right: remove its left one
+            del interior_knots[sparse_interval - 1]
+        else:
+            del interior_knots[sparse_interval]
         sparse_interval = _first_sparse_interval(wave, interior_knots)
     end_knots = SPLINE_DEGREE + 1
     return np.concatenate([[first] * end_knots, interior_knots, [last] * end_knots])
 
 
 def _first_sparse_interval(wave, interior_knots):
-    """Index of the first interval between knots with too few pixels.
+    """Index of the first interval between knots with too few used pixels.
 
     Parameters
     ----------
     wave : array
-        Sorted wavelengths of the fitted pixels, Angstrom.
+        Sorted wavelengths of the used pixels, Angstrom.
     interior_knots : list of float
 
     Returns
     -------
     index : int or None
-        0 for the interval from wave[0] to the first interior knot. None
-        if every interval holds at least MIN_PIXELS_PER_INTERVAL pixels,
-        or if there is no interior knot left.
+        0 for the interval from wave[0] to the first knot. None if every
+        interval holds at least MIN_PIXELS_PER_INTERVAL pixels, or if
+        there is no interior knot left.
     """
     if not interior_knots:
         return None
     edges = [wave[0], *interior_knots, wave[-1]]
-    pixel_counts, _ = np.histogram(wave, bins=edges)
-    for index, pixel_count in enumerate(pixel_counts):
+    pixels_per_interval, _ = np.histogram(wave, bins=edges)
+    for index, pixel_count in enumerate(pixels_per_interval):
         if pixel_count < MIN_PIXELS_PER_INTERVAL:
             return index
     return None
 
 
-def _knot_to_remove(sparse_interval, interior_knots):
-    """Index, in `interior_knots`, of a knot bounding interval `sparse_interval`.
+def _continuum_error(spline, spectrum, used, wave):
+    """1-sigma statistical error of the fitted spline at each wavelength of `wave`.
 
-    Interval i lies between interior knots i-1 and i, so its right edge is
-    knot i; the last interval has no right interior knot, so its left edge
-    is removed instead.
-
-    Parameters
-    ----------
-    sparse_interval : int
-    interior_knots : list of float
-
-    Returns
-    -------
-    index : int
-    """
-    last_knot = len(interior_knots) - 1
-    return min(sparse_interval, last_knot)
-
-
-def _inside_used_range(wave, used):
-    """True between the first and last used pixel, inclusive.
-
-    Parameters
-    ----------
-    wave : array
-    used : array of bool
-
-    Returns
-    -------
-    inside : array of bool
-    """
-    used_wave = wave[used]
-    return (wave >= used_wave[0]) & (wave <= used_wave[-1])
-
-
-def _spline_error(spline, spectrum, used, inside):
-    """1-sigma statistical error of the fitted spline at `inside` pixels.
-
-    The spline is C(lambda) = sum_j c_j B_j(lambda), so its variance is
-    B(lambda)^T Cov(c) B(lambda), with B(lambda) the values of the basis
-    functions at lambda. Still a lower bound: it ignores the choice of
-    knots and which pixels were clipped (compare fits with several knot
-    spacings for that systematic).
+    The spline is C(lambda) = sum_j c_j B_j(lambda). Least squares gives
+    the covariance of the coefficients c,
+        Cov = (sum over used pixels i of B_i B_i^T / error_i^2)^-1,
+    where B_i holds the values of the basis functions B_j at pixel i, and
+    the variance of the continuum at lambda is B(lambda)^T Cov B(lambda).
+    Cov is multiplied by the reduced chi^2 when it exceeds 1, so that
+    pixel errors that are too small inflate the continuum error.
 
     Parameters
     ----------
     spline : scipy.interpolate.BSpline
         Fit to the `used` pixels.
     spectrum : Spectrum
-    used, inside : array of bool
+    used : array of bool
+    wave : array
+        Wavelengths where the error is wanted, Angstrom.
 
     Returns
     -------
     error : array
-        One value per `inside` pixel, units of the flux.
+        Units of the flux.
     """
-    covariance = _coefficient_covariance(spline, spectrum, used)
-    basis = _basis_values(spline, spectrum.wave[inside])
+    n_coefficients = len(spline.c)
+    used_wave = spectrum.wave[used]
+    used_flux = spectrum.flux[used]
+    used_error = spectrum.error[used]
+
+    normal_matrix = np.zeros((n_coefficients, n_coefficients))
+    used_basis = BSpline.design_matrix(used_wave, spline.t, SPLINE_DEGREE)
+    for basis_row, pixel_error in zip(used_basis.toarray(), used_error):
+        normal_matrix += np.outer(basis_row, basis_row) / pixel_error**2
+    covariance = np.linalg.pinv(normal_matrix)
+
+    residuals = (used_flux - spline(used_wave)) / used_error
+    reduced_chi2 = np.sum(residuals**2) / (len(residuals) - n_coefficients)
+    covariance = covariance * max(1.0, reduced_chi2)
+
+    basis = BSpline.design_matrix(wave, spline.t, SPLINE_DEGREE)
     variances = []
-    for basis_row in basis:
+    for basis_row in basis.toarray():
         variances.append(basis_row @ covariance @ basis_row)
     return np.sqrt(variances)
-
-
-def _coefficient_covariance(spline, spectrum, used):
-    """Covariance of the spline coefficients, scaled by the reduced chi^2.
-
-    Least squares gives Cov(c) = (sum_i B_i B_i^T / sigma_i^2)^-1, summed
-    over the used pixels i. It is multiplied by the reduced chi^2 when
-    that exceeds 1, so that pixel errors that are too small, or a spline
-    that cannot follow the continuum, inflate the error.
-
-    Parameters
-    ----------
-    spline : scipy.interpolate.BSpline
-    spectrum : Spectrum
-    used : array of bool
-
-    Returns
-    -------
-    covariance : array, shape (n_coefficients, n_coefficients)
-    """
-    basis = _basis_values(spline, spectrum.wave[used])
-    n_coefficients = spline.c.size
-    normal_matrix = np.zeros((n_coefficients, n_coefficients))
-    for basis_row, pixel_error in zip(basis, spectrum.error[used]):
-        normal_matrix += np.outer(basis_row, basis_row) / pixel_error**2
-    reduced_chi2 = _reduced_chi2(spline, spectrum, used)
-    return max(1.0, reduced_chi2) * np.linalg.pinv(normal_matrix)
-
-
-def _basis_values(spline, wave):
-    """Values of every B-spline basis function at every wavelength.
-
-    Parameters
-    ----------
-    spline : scipy.interpolate.BSpline
-    wave : array
-        Angstrom.
-
-    Returns
-    -------
-    basis : array, shape (len(wave), n_coefficients)
-        Row i holds B_j(wave[i]) for every coefficient j.
-    """
-    return BSpline.design_matrix(wave, spline.t, SPLINE_DEGREE).toarray()
-
-
-def _reduced_chi2(spline, spectrum, used):
-    """Chi^2 of the spline fit per degree of freedom, over the used pixels.
-
-    Parameters
-    ----------
-    spline : scipy.interpolate.BSpline
-    spectrum : Spectrum
-    used : array of bool
-
-    Returns
-    -------
-    reduced_chi2 : float
-    """
-    wave = spectrum.wave[used]
-    normalised_residuals = (spectrum.flux[used] - spline(wave)) / spectrum.error[used]
-    degrees_of_freedom = wave.size - spline.c.size
-    return np.sum(normalised_residuals**2) / degrees_of_freedom
