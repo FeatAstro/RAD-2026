@@ -85,7 +85,7 @@ def fit_continuum(spectrum, settings=ContinuumSettings()):
     -------
     fit : ContinuumFit
     """
-    _check_input(spectrum)
+    spectrum.check_valid()
     used, n_iter, status = _clip_until_stable(spectrum, settings)
     spline = _weighted_spline(spectrum, used, settings.knot_spacing)
 
@@ -119,20 +119,6 @@ def normalise(spectrum, continuum):
         error=spectrum.error / continuum,
         continuum=np.ones_like(continuum),
     )
-
-
-def _check_input(spectrum):
-    """Raise ValueError if the spectrum cannot be fitted.
-
-    Parameters
-    ----------
-    spectrum : Spectrum
-    """
-    if np.any(np.diff(spectrum.wave) <= 0):
-        raise ValueError("wave must be strictly increasing")
-    # Written as "not > 0" so that NaN errors are caught too
-    if np.any(~(spectrum.error > 0)):
-        raise ValueError("error must be positive at every pixel")
 
 
 def _clip_until_stable(spectrum, settings):

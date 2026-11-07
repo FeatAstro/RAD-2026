@@ -8,7 +8,8 @@ holding several resolved lines is split at the dips between them.
 
 import numpy as np
 
-from ..constants import C_KMS, FWHM_PER_SIGMA
+from ..constants import C_KMS
+from ..line_profiles import lsf_sigma_kms
 
 # Significance (in sigma) below which the window of a feature ends. The
 # window grows from the detected pixels while the significance stays above
@@ -31,17 +32,14 @@ MIN_SPLIT_DIP = 3.5
 def check_input(spectrum):
     """Raise ValueError if the features cannot be searched for.
 
-    A pixel with zero error would get infinite weight, so noise-free
-    spectra (e.g. make_synthetic with snr=None) are rejected. Without
-    the LSF width the filter has no shape.
+    Without the LSF width the filter has no shape.
 
     Parameters
     ----------
     spectrum : Spectrum
-        Checks `error` and `meta["fwhm_kms"]`.
+        Valid as in `Spectrum.check_valid`, with `meta["fwhm_kms"]`.
     """
-    if np.any(~(spectrum.error > 0)):
-        raise ValueError("error must be positive at every pixel")
+    spectrum.check_valid()
     if "fwhm_kms" not in spectrum.meta:
         raise ValueError('meta["fwhm_kms"] (LSF FWHM in km/s) is required')
 
@@ -97,7 +95,7 @@ def lsf_sigma_pixels(spectrum):
         Gaussian sigma of the LSF, in pixels.
     """
     pixel_kms = C_KMS * np.median(np.diff(np.log(spectrum.wave)))
-    return spectrum.meta["fwhm_kms"] / FWHM_PER_SIGMA / pixel_kms
+    return lsf_sigma_kms(spectrum) / pixel_kms
 
 
 def gaussian_kernel(sigma):

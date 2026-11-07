@@ -10,8 +10,9 @@ from dataclasses import replace
 import numpy as np
 from scipy.optimize import curve_fit
 
-from ..constants import C_KMS, FWHM_PER_SIGMA
+from ..constants import C_KMS
 from ..equivalent_width import measure_ew
+from ..line_profiles import lsf_sigma_kms
 from .significance import relative_signal
 
 
@@ -128,7 +129,7 @@ def _fit_centre(feature, sign):
     """
     signal, inverse_variance = relative_signal(feature, sign)
     peak = feature.wave[np.argmax(signal)]
-    sigma_min = peak * feature.meta["fwhm_kms"] / FWHM_PER_SIGMA / C_KMS
+    sigma_min = peak * lsf_sigma_kms(feature) / C_KMS
     width = feature.wave[-1] - feature.wave[0]
     lower = [0.0, feature.wave[0], sigma_min]
     upper = [np.inf, feature.wave[-1], max(width, 2 * sigma_min)]

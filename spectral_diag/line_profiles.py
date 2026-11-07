@@ -155,6 +155,22 @@ def _central_optical_depth(line, logN, b):
     return TAU0_CONST * column_density * line.f * line.wave_rest / b
 
 
+def lsf_sigma_kms(spectrum):
+    """Gaussian sigma of the line spread function of the instrument.
+
+    Parameters
+    ----------
+    spectrum : Spectrum
+        `meta` must hold fwhm_kms.
+
+    Returns
+    -------
+    sigma : float
+        km/s.
+    """
+    return spectrum.meta["fwhm_kms"] / FWHM_PER_SIGMA
+
+
 @dataclass(frozen=True)
 class InstrumentGrid:
     """Model grid matched to the pixels and the LSF of a spectrum.
@@ -209,11 +225,10 @@ class InstrumentGrid:
         first_edge = np.log10(spectrum.wave[0]) - pixel_dex / 2
         # Subpixel i is centred at first_edge + (i + 0.5) * subpixel_dex
         log_wave = first_edge + subpixel_dex * (np.arange(n_subpixels) + 0.5)
-        lsf_sigma_kms = spectrum.meta["fwhm_kms"] / FWHM_PER_SIGMA
         return cls(
             wave=10**log_wave,
             subpixels=_subpixels_of_each_pixel(pixel_numbers, oversample),
-            lsf_sigma=_kms_to_dex(lsf_sigma_kms) / subpixel_dex,
+            lsf_sigma=_kms_to_dex(lsf_sigma_kms(spectrum)) / subpixel_dex,
         )
 
     def observe(self, flux):

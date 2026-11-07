@@ -45,6 +45,25 @@ class Spectrum:
     continuum: np.ndarray | None = None
     meta: dict = field(default_factory=dict)
 
+    def check_valid(self):
+        """Raise ValueError if the spectrum cannot be fitted or searched.
+
+        Not run on construction: spectra under construction, e.g. with
+        `error` still zero, must be allowed to exist.
+
+        Raises
+        ------
+        ValueError
+            If `wave` is not strictly increasing (else a negative pixel
+            size) or `error` is not > 0 at every pixel (else an infinite
+            weight).
+        """
+        if np.any(np.diff(self.wave) <= 0):
+            raise ValueError("wave must be strictly increasing")
+        # Written as "not > 0" so that NaN errors are caught too
+        if np.any(~(self.error > 0)):
+            raise ValueError("error must be positive at every pixel")
+
 
 @dataclass(frozen=True)
 class Line:
