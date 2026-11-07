@@ -6,7 +6,6 @@ features are the groups of pixels above a detection threshold.
 """
 
 import numpy as np
-from scipy import ndimage
 
 from ..constants import C_KMS, FWHM_PER_SIGMA
 
@@ -166,6 +165,32 @@ def feature_windows(significance, threshold):
         One per feature, in increasing wavelength: a run of pixels above
         WINDOW_EDGE_SIGNIFICANCE with at least one pixel above `threshold`.
     """
-    runs, _ = ndimage.label(significance > WINDOW_EDGE_SIGNIFICANCE)
-    windows = ndimage.find_objects(runs)
-    return [window[0] for window in windows if significance[window].max() > threshold]
+    runs = _runs_above(significance, WINDOW_EDGE_SIGNIFICANCE)
+    return [run for run in runs if significance[run].max() > threshold]
+
+
+def _runs_above(values, level):
+    """Runs of consecutive elements above a level.
+
+    Parameters
+    ----------
+    values : array
+    level : float
+
+    Returns
+    -------
+    runs : list of slice
+        One per maximal run of consecutive elements with value > `level`,
+        in increasing index.
+    """
+    runs = []
+    start = None
+    for index, value in enumerate(values):
+        if value > level and start is None:
+            start = index
+        elif value <= level and start is not None:
+            runs.append(slice(start, index))
+            start = None
+    if start is not None:
+        runs.append(slice(start, len(values)))
+    return runs
