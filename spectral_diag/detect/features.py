@@ -4,7 +4,6 @@ from astropy.table import Table
 
 from .measure import measure_feature
 from .significance import (
-    check_input,
     feature_windows,
     gaussian_kernel,
     lsf_sigma_pixels,
@@ -73,10 +72,10 @@ def find_features(spectrum, threshold=4.0, sign=-1):
     Raises
     ------
     ValueError
-        If `spectrum.error` is not positive at every pixel, or
-        `meta["fwhm_kms"]` is missing.
+        If `wave` is not strictly increasing, `error` is not positive at
+        every pixel or `meta["fwhm_kms"]` is missing.
     """
-    check_input(spectrum)
+    spectrum.check_valid()
     signal, inverse_variance = relative_signal(spectrum, sign)
     kernel = gaussian_kernel(lsf_sigma_pixels(spectrum))
     significance = matched_filter_significance(signal, inverse_variance, kernel)

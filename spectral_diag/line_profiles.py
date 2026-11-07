@@ -167,7 +167,14 @@ def lsf_sigma_kms(spectrum):
     -------
     sigma : float
         km/s.
+
+    Raises
+    ------
+    ValueError
+        If `meta["fwhm_kms"]` is missing.
     """
+    if "fwhm_kms" not in spectrum.meta:
+        raise ValueError('meta["fwhm_kms"] (LSF FWHM in km/s) is required')
     return spectrum.meta["fwhm_kms"] / FWHM_PER_SIGMA
 
 

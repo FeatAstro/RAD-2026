@@ -5,6 +5,7 @@ from spectral_diag.constants import C_KMS, FWHM_PER_SIGMA
 from spectral_diag.data_classes import Line, Spectrum
 from spectral_diag.line_profiles import (
     InstrumentGrid,
+    lsf_sigma_kms,
     optical_depth,
     optical_depth_gaussian,
 )
@@ -102,3 +103,10 @@ def test_rejects_grid_not_uniform_in_log():
     )
     with pytest.raises(ValueError):
         InstrumentGrid.for_spectrum(linear, OVERSAMPLE)
+
+
+def test_lsf_sigma_requires_resolution():
+    spectrum = log_uniform_spectrum()
+    del spectrum.meta["fwhm_kms"]
+    with pytest.raises(ValueError, match="fwhm_kms"):
+        lsf_sigma_kms(spectrum)

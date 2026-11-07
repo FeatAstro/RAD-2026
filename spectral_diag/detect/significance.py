@@ -29,21 +29,6 @@ KERNEL_HALF_WIDTH_SIGMA = 4.0
 MIN_SPLIT_DIP = 3.5
 
 
-def check_input(spectrum):
-    """Raise ValueError if the features cannot be searched for.
-
-    Without the LSF width the filter has no shape.
-
-    Parameters
-    ----------
-    spectrum : Spectrum
-        Valid as in `Spectrum.check_valid`, with `meta["fwhm_kms"]`.
-    """
-    spectrum.check_valid()
-    if "fwhm_kms" not in spectrum.meta:
-        raise ValueError('meta["fwhm_kms"] (LSF FWHM in km/s) is required')
-
-
 def relative_signal(spectrum, sign):
     """Fractional deviation of the flux from the continuum, and its weight.
 
