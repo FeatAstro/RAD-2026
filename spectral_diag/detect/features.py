@@ -12,6 +12,9 @@ from .significance import (
     relative_signal,
 )
 
+# TODO: flag telluric features (O2, H2O at fixed observed wavelength, ground-based
+# only), e.g. a `telluric` column from an ESO SkyCalc transmission model at the
+# LSF. Not needed for the A0 star: only O2 A (~7598 A) is clearly telluric
 FEATURE_COLUMNS = (
     "wave",
     "wave_err",
