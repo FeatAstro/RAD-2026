@@ -10,6 +10,7 @@ from .significance import (
     lsf_sigma_pixels,
     matched_filter_significance,
     relative_signal,
+    split_blends,
 )
 
 # TODO: flag telluric features (O2, H2O at fixed observed wavelength, ground-based
@@ -36,15 +37,20 @@ def find_features(spectrum, threshold=4.0, sign=-1):
        LSF (the shape of an unresolved line). At each pixel this gives
        the significance, in sigma, of a line centred there.
     3. Each group of neighbouring pixels above WINDOW_EDGE_SIGNIFICANCE
-       that contains a pixel above `threshold` is one feature, so a
+       that contains a pixel above `threshold` is one window, so a
        broad line with its wings comes out as one feature.
-    4. Measure the centre, depth and equivalent width of each feature.
+    4. Split each window at the dips between resolved lines
+       (`split_blends`), e.g. the NaI D doublet. Lines closer than the
+       resolution stay in one feature.
+    5. Measure the centre, depth and equivalent width of each feature.
 
     The window is meant for detecting and locating the feature. For a
     broad line it misses the far damping wings, whose depth is below
     the noise of one resolution element (about 6% of the EW of a
     Balmer-like line at SNR 50): measure the EW for the curve of growth
-    over a wider window or with a profile fit.
+    over a wider window or with a profile fit. A line split off the
+    wing of a broad one (e.g. CaII K on H-epsilon) has a good centre,
+    but its EW includes the wing absorption under it.
 
     Parameters
     ----------
@@ -74,9 +80,33 @@ def find_features(spectrum, threshold=4.0, sign=-1):
     signal, inverse_variance = relative_signal(spectrum, sign)
     kernel = gaussian_kernel(lsf_sigma_pixels(spectrum))
     significance = matched_filter_significance(signal, inverse_variance, kernel)
-    windows = feature_windows(significance, threshold)
+    windows = _line_windows(significance, threshold)
     rows = [measure_feature(spectrum, window, sign) for window in windows]
     return Table(rows=rows, names=FEATURE_COLUMNS) if rows else _empty_table()
+
+
+# TODO: flag the features that come from a split (`blended` column, agree with
+# Gael): cutting at the valley shares their absorption only roughly (NaI D,
+# CaII K on H-epsilon), so their EW needs a joint profile fit after identify
+def _line_windows(significance, threshold):
+    """Feature windows, split so that each holds one resolved line.
+
+    Parameters
+    ----------
+    significance : array
+        From `matched_filter_significance`.
+    threshold : float
+        Detection threshold, in sigma.
+
+    Returns
+    -------
+    windows : list of slice
+        In increasing wavelength.
+    """
+    windows = []
+    for window in feature_windows(significance, threshold):
+        windows.extend(split_blends(significance, window, threshold))
+    return windows
 
 
 def _empty_table():

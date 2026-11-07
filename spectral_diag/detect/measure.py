@@ -98,6 +98,11 @@ def _gaussian(wave, amplitude, centre, sigma):
     return amplitude * np.exp(-0.5 * ((wave - centre) / sigma) ** 2)
 
 
+# TODO: for windows cut by split_blends (on the wing of a neighbouring line),
+# fit a Gaussian plus a linear baseline when the window has enough pixels:
+# without it the Gaussian runs to the window edge (A0 star, piece at 4317 A on
+# the wing of H-gamma: 4317.18 +- 6.55 A, 4315.26 +- 0.32 A with a baseline).
+# Split _fit_centre into helpers at the same time (it is over ~20 lines)
 def _fit_centre(feature, sign):
     """Centre of a feature and its 1-sigma error, from a Gaussian fit.
 
