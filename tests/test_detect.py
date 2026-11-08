@@ -9,6 +9,14 @@ import pytest
 
 from spectral_diag.data_classes import Absorber, Line, Spectrum
 from spectral_diag.detect import FEATURE_COLUMNS, find_features
+from spectral_diag.detect.significance import (
+    feature_windows,
+    gaussian_kernel,
+    matched_filter_significance,
+    relative_signal,
+    split_blends,
+    unresolved_line_sigma_in_pixels,
+)
 from spectral_diag.line_profiles import InstrumentGrid, optical_depth
 
 PIXEL_DEX = 1e-4
@@ -39,6 +47,15 @@ ONE_PIXEL_LINE_INDEX = 400
 ONE_PIXEL_LINE_FLUX = 0.4
 # Largest distance from the true centre, in units of wave_err
 MAX_CENTRE_PULL = 4.0
+# Two narrow lines 6 A (2.5 FWHM) apart, resolved like the NaI D doublet
+RESOLVED_PAIR_WAVES = (4900.0, 4906.0)
+# Narrow line on the wing of BROAD_LINE, 30 A from its centre
+WING_LINE_WAVE = 4890.0
+N_CALIBRATION_SEEDS = 100
+# Measured 1% and 85% at MIN_SPLIT_DIP = 3.5 (see its comment); fail if the
+# split clearly gets worse
+MAX_FALSE_SPLIT_FRACTION = 0.05
+MIN_SEPARATED_PAIR_FRACTION = 0.75
 
 
 def narrow_absorbers(waves):
@@ -107,6 +124,81 @@ def total_optical_depth(wave, absorbers):
     return tau
 
 
+def broad_absorber():
+    """The broad test line standing in for a Balmer line, at z = 0.
+
+    Returns
+    -------
+    absorber : Absorber
+    """
+    return Absorber("Y", 0.0, BROAD_LOGN, BROAD_B, [BROAD_LINE])
+
+
+def split_windows_around(spectrum, wave):
+    """Parts into which `split_blends` cuts the window holding a wavelength.
+
+    Parameters
+    ----------
+    spectrum : Spectrum
+        With continuum and meta["fwhm_kms"].
+    wave : float
+        Angstrom.
+
+    Returns
+    -------
+    parts : list of (float, float)
+        First and last wavelength of each part, Angstrom; empty if no
+        window holds `wave`.
+    """
+    signal, inverse_variance = relative_signal(spectrum, -1)
+    kernel = gaussian_kernel(unresolved_line_sigma_in_pixels(spectrum))
+    significance = matched_filter_significance(signal, inverse_variance, kernel)
+    for window in feature_windows(significance, 4.0):
+        if spectrum.wave[window.start] <= wave <= spectrum.wave[window.stop - 1]:
+            parts = split_blends(significance, window, 4.0)
+            return [(spectrum.wave[p.start], spectrum.wave[p.stop - 1]) for p in parts]
+    return []
+
+
+def in_separate_parts(parts, waves):
+    """Whether each wavelength lies in a part of its own.
+
+    Parameters
+    ----------
+    parts : list of (float, float)
+        From `split_windows_around`.
+    waves : sequence of float
+        Angstrom.
+
+    Returns
+    -------
+    separate : bool
+    """
+    owners = [part_holding(parts, wave) for wave in waves]
+    return None not in owners and len(set(owners)) == len(owners)
+
+
+def part_holding(parts, wave):
+    """Index of the part that holds a wavelength.
+
+    Parameters
+    ----------
+    parts : list of (float, float)
+        From `split_windows_around`.
+    wave : float
+        Angstrom.
+
+    Returns
+    -------
+    index : int or None
+        None if no part holds `wave`.
+    """
+    for index, (low, high) in enumerate(parts):
+        if low <= wave <= high:
+            return index
+    return None
+
+
 def test_noise_only_gives_no_features():
     spectrum = sdss_like_spectrum([], np.random.default_rng(1))
     features = find_features(spectrum)
@@ -124,6 +216,13 @@ def test_rejects_noise_free_spectrum():
 def test_rejects_missing_resolution():
     spectrum = sdss_like_spectrum([], np.random.default_rng(7))
     del spectrum.meta["fwhm_kms"]
+    with pytest.raises(ValueError):
+        find_features(spectrum)
+
+
+def test_rejects_decreasing_wavelengths():
+    spectrum = sdss_like_spectrum([], np.random.default_rng(8))
+    spectrum.wave[:] = spectrum.wave[::-1].copy()
     with pytest.raises(ValueError):
         find_features(spectrum)
 
@@ -194,3 +293,38 @@ def test_ignores_pixels_without_continuum():
     features = find_features(spectrum)
     assert len(features) == len(NARROW_WAVES)
     assert np.all(np.isfinite(features["ew"]))
+
+
+def test_resolved_pair_gives_two_features():
+    spectrum = sdss_like_spectrum(
+        narrow_absorbers(RESOLVED_PAIR_WAVES), np.random.default_rng(2)
+    )
+    features = find_features(spectrum)
+    assert len(features) == len(RESOLVED_PAIR_WAVES)
+    pull = (features["wave"] - np.array(RESOLVED_PAIR_WAVES)) / features["wave_err"]
+    assert np.all(np.abs(pull) < MAX_CENTRE_PULL)
+
+
+def test_line_on_broad_wing_is_a_separate_feature():
+    absorbers = [broad_absorber()] + narrow_absorbers([WING_LINE_WAVE])
+    spectrum = sdss_like_spectrum(absorbers, np.random.default_rng(3))
+    parts = split_windows_around(spectrum, BROAD_LINE.wave_rest)
+    assert in_separate_parts(parts, [BROAD_LINE.wave_rest, WING_LINE_WAVE])
+
+
+def test_broad_line_is_rarely_split():
+    false_splits = 0
+    for seed in range(N_CALIBRATION_SEEDS):
+        spectrum = sdss_like_spectrum([broad_absorber()], np.random.default_rng(seed))
+        false_splits += len(split_windows_around(spectrum, BROAD_LINE.wave_rest)) > 1
+    assert false_splits / N_CALIBRATION_SEEDS <= MAX_FALSE_SPLIT_FRACTION
+
+
+def test_resolved_pairs_are_mostly_separated():
+    absorbers = narrow_absorbers(RESOLVED_PAIR_WAVES)
+    separated = 0
+    for seed in range(N_CALIBRATION_SEEDS):
+        spectrum = sdss_like_spectrum(absorbers, np.random.default_rng(seed))
+        parts = split_windows_around(spectrum, RESOLVED_PAIR_WAVES[0])
+        separated += in_separate_parts(parts, RESOLVED_PAIR_WAVES)
+    assert separated / N_CALIBRATION_SEEDS >= MIN_SEPARATED_PAIR_FRACTION

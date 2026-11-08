@@ -1,10 +1,11 @@
 import numpy as np
 import pytest
 
-from spectral_diag.constants import C_KMS, FWHM_PER_SIGMA
+from spectral_diag import constants
 from spectral_diag.data_classes import Line, Spectrum
 from spectral_diag.line_profiles import (
     InstrumentGrid,
+    lsf_sigma_kms,
     optical_depth,
     optical_depth_gaussian,
 )
@@ -30,7 +31,7 @@ PIXEL_DEX = 1e-4
 FWHM_KMS = 150.0
 OVERSAMPLE = 10
 # Pixel width in km/s for PIXEL_DEX
-PIXEL_KMS = np.log(10) * C_KMS * PIXEL_DEX
+PIXEL_KMS = np.log(10) * constants.C_KMS * PIXEL_DEX
 
 
 def log_uniform_spectrum(n_pixels=400, start=3.6):
@@ -45,7 +46,7 @@ def log_uniform_spectrum(n_pixels=400, start=3.6):
 def weak_line_absorption(grid, b):
     """Intrinsic 1 - flux on `grid.wave` of a weak Gaussian line at its centre."""
     centre = np.sqrt(grid.wave[0] * grid.wave[-1])
-    velocity = C_KMS * np.log(grid.wave / centre)
+    velocity = constants.C_KMS * np.log(grid.wave / centre)
     weak_tau0 = 0.01
     return 1 - np.exp(-weak_tau0 * np.exp(-((velocity / b) ** 2)))
 
@@ -72,7 +73,7 @@ def test_observed_width_of_unresolved_line():
     absorption = 1 - grid.observe(1 - weak_line_absorption(grid, b))
     velocity = PIXEL_KMS * (np.arange(absorption.size) - (absorption.size - 1) / 2)
     variance = np.sum(absorption * velocity**2) / np.sum(absorption)
-    expected = (FWHM_KMS / FWHM_PER_SIGMA) ** 2 + b**2 / 2 + PIXEL_KMS**2 / 12
+    expected = (FWHM_KMS / constants.FWHM_PER_SIGMA) ** 2 + b**2 / 2 + PIXEL_KMS**2 / 12
     np.testing.assert_allclose(variance, expected, rtol=0.01)
 
 
@@ -102,3 +103,10 @@ def test_rejects_grid_not_uniform_in_log():
     )
     with pytest.raises(ValueError):
         InstrumentGrid.for_spectrum(linear, OVERSAMPLE)
+
+
+def test_lsf_sigma_requires_resolution():
+    spectrum = log_uniform_spectrum()
+    del spectrum.meta["fwhm_kms"]
+    with pytest.raises(ValueError, match="fwhm_kms"):
+        lsf_sigma_kms(spectrum)

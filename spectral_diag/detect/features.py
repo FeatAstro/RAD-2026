@@ -4,14 +4,15 @@ from astropy.table import Table
 
 from .measure import measure_feature
 from .significance import (
-    check_input,
     feature_windows,
     gaussian_kernel,
-    lsf_sigma_pixels,
     matched_filter_significance,
     relative_signal,
+    split_blends,
+    unresolved_line_sigma_in_pixels,
 )
 
+# TODO: flag telluric features (O2, H2O) with a `telluric` column
 FEATURE_COLUMNS = (
     "wave",
     "wave_err",
@@ -27,29 +28,16 @@ FEATURE_COLUMNS = (
 def find_features(spectrum, threshold=4.0, sign=-1):
     """Find the significant absorption (or emission) features of a spectrum.
 
-    Steps:
-    1. Convert the flux to a signal relative to the continuum.
-    2. Slide along the spectrum a Gaussian as wide as the instrument's
-       LSF (the shape of an unresolved line). At each pixel this gives
-       the significance, in sigma, of a line centred there.
-    3. Each group of neighbouring pixels above WINDOW_EDGE_SIGNIFICANCE
-       that contains a pixel above `threshold` is one feature, so a
-       broad line with its wings comes out as one feature.
-    4. Measure the centre, depth and equivalent width of each feature.
-
-    The window is meant for detecting and locating the feature. For a
-    broad line it misses the far damping wings, whose depth is below
-    the noise of one resolution element (about 6% of the EW of a
-    Balmer-like line at SNR 50): measure the EW for the curve of growth
-    over a wider window or with a profile fit.
+    The EW is approximate: over the detection window it misses the far
+    wings of a broad line (about 6% at SNR 50) and includes the wing under
+    a split line (e.g. CaII K on H-epsilon). Remeasure it for the curve of
+    growth.
 
     Parameters
     ----------
     spectrum : Spectrum
-        `continuum` fitted (NaN pixels are ignored), `error` positive,
-        and `meta["fwhm_kms"]`, the FWHM of the LSF in km/s. Pixels
-        roughly uniform in velocity, as in SDSS; small gaps only shift
-        the filter slightly.
+        With `continuum` fitted, `error` > 0 and `meta["fwhm_kms"]` (LSF
+        FWHM, km/s). Pixels roughly uniform in velocity, as in SDSS.
     threshold : float
         Detection threshold, in sigma.
     sign : {-1, +1}
@@ -64,23 +52,36 @@ def find_features(spectrum, threshold=4.0, sign=-1):
     Raises
     ------
     ValueError
-        If `spectrum.error` is not positive at every pixel, or
-        `meta["fwhm_kms"]` is missing.
+        If `wave` is not strictly increasing, `error` is not positive at
+        every pixel or `meta["fwhm_kms"]` is missing.
     """
-    check_input(spectrum)
+    spectrum.check_valid()
     signal, inverse_variance = relative_signal(spectrum, sign)
-    kernel = gaussian_kernel(lsf_sigma_pixels(spectrum))
+    kernel = gaussian_kernel(unresolved_line_sigma_in_pixels(spectrum))
     significance = matched_filter_significance(signal, inverse_variance, kernel)
-    windows = feature_windows(significance, threshold)
+    windows = _line_windows(significance, threshold)
     rows = [measure_feature(spectrum, window, sign) for window in windows]
-    return Table(rows=rows, names=FEATURE_COLUMNS) if rows else _empty_table()
+    return Table({name: [row[name] for row in rows] for name in FEATURE_COLUMNS})
 
 
-def _empty_table():
-    """Features table with no rows and the columns of FEATURE_COLUMNS.
+# TODO: add a `blended` column for split features (agree with Gael): their EW
+# needs a joint profile fit after identify
+def _line_windows(significance, threshold):
+    """Feature windows, split so that each holds one resolved line.
+
+    Parameters
+    ----------
+    significance : array
+        From `matched_filter_significance`.
+    threshold : float
+        Detection threshold, in sigma.
 
     Returns
     -------
-    features : astropy.table.Table
+    windows : list of slice
+        In increasing wavelength.
     """
-    return Table(names=FEATURE_COLUMNS, dtype=[float] * len(FEATURE_COLUMNS))
+    windows = []
+    for window in feature_windows(significance, threshold):
+        windows.extend(split_blends(significance, window, threshold))
+    return windows

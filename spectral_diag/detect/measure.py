@@ -1,17 +1,15 @@
 """Centre, depth and equivalent width of one detected feature.
 
-The centre of a feature comes from a generic Gaussian fit, which needs no
-atomic data. The physical Voigt fit (optical_depth + InstrumentGrid, with
-N, b, z free) belongs to a later stage, on the identified lines.
+The centre comes from a generic Gaussian fit, which needs no atomic data.
+The Voigt fit (N, b, z free) belongs to a later stage, on identified lines.
 """
-
-from dataclasses import replace
 
 import numpy as np
 from scipy.optimize import curve_fit
 
-from ..constants import C_KMS, FWHM_PER_SIGMA
+from .. import constants
 from ..equivalent_width import measure_ew
+from ..line_profiles import lsf_sigma_kms
 from .significance import relative_signal
 
 
@@ -30,13 +28,12 @@ def measure_feature(spectrum, window, sign):
     Returns
     -------
     row : dict
-        One value per name in FEATURE_COLUMNS, see `spectral_diag.detect`.
-        The centre comes from a Gaussian fit (see `_fit_centre`), the depth
-        is that of the deepest pixel, the EW is over the whole window.
+        One value per name in FEATURE_COLUMNS. The depth is that of the
+        deepest pixel; the EW is over the whole window.
     """
-    feature = _cut(spectrum, window)
-    signal, _ = relative_signal(feature, sign)
-    centre, centre_err = _fit_centre(feature, sign)
+    feature = spectrum.cut(window)
+    signal, inverse_variance = relative_signal(feature, sign)
+    centre, centre_err = _fit_centre(feature, signal, inverse_variance)
     raw_ew, ew_err = measure_ew(
         feature.wave, feature.flux, feature.continuum, feature.error
     )
@@ -52,31 +49,6 @@ def measure_feature(spectrum, window, sign):
         "ew_err": ew_err,
         "snr": ew / ew_err,
     }
-
-
-def _cut(spectrum, window):
-    """The pixels `window` of `spectrum`, as a new Spectrum.
-
-    Parameters
-    ----------
-    spectrum : Spectrum
-        With `continuum` set.
-    window : slice
-        Pixels to keep.
-
-    Returns
-    -------
-    cut : Spectrum
-        `wave`, `flux`, `error` and `continuum` restricted to `window`;
-        `meta` is shared with `spectrum`.
-    """
-    return replace(
-        spectrum,
-        wave=spectrum.wave[window],
-        flux=spectrum.flux[window],
-        error=spectrum.error[window],
-        continuum=spectrum.continuum[window],
-    )
 
 
 def _gaussian(wave, amplitude, centre, sigma):
@@ -98,32 +70,28 @@ def _gaussian(wave, amplitude, centre, sigma):
     return amplitude * np.exp(-0.5 * ((wave - centre) / sigma) ** 2)
 
 
-def _fit_centre(feature, sign):
+# TODO: Gaussian plus linear baseline for windows cut by split_blends (4317 A
+# on the wing of H-gamma); split into helpers (over ~20 lines)
+def _fit_centre(feature, signal, inverse_variance):
     """Centre of a feature and its 1-sigma error, from a Gaussian fit.
 
-    Fits amplitude, centre and width to the signal of the whole window by
-    weighted least squares. The width cannot be smaller than the LSF, the
-    narrowest a line can look. The error is that of the centre in the fit
-    covariance, scaled by the reduced chi^2 when it exceeds 1 (a Gaussian
-    is a poor shape for a broad line with damping wings).
+    The width is bounded below by the LSF. The error is scaled by the
+    reduced chi^2 when above 1: a Gaussian is a poor shape for damping wings.
 
     Parameters
     ----------
     feature : Spectrum
-        Only the pixels of the feature (its window), with `continuum` and
-        `meta["fwhm_kms"]`.
-    sign : {-1, +1}
-        -1 for absorption, +1 for emission.
+        Pixels of the window, with `meta["fwhm_kms"]`.
+    signal, inverse_variance : array
+        From `relative_signal` on `feature`.
 
     Returns
     -------
     centre, centre_err : float
-        Angstrom. If the fit fails: the wavelength of the deepest pixel
-        and NaN.
+        Angstrom. If the fit fails: the deepest pixel and NaN.
     """
-    signal, inverse_variance = relative_signal(feature, sign)
     peak = feature.wave[np.argmax(signal)]
-    sigma_min = peak * feature.meta["fwhm_kms"] / FWHM_PER_SIGMA / C_KMS
+    sigma_min = peak * lsf_sigma_kms(feature) / constants.C_KMS
     width = feature.wave[-1] - feature.wave[0]
     lower = [0.0, feature.wave[0], sigma_min]
     upper = [np.inf, feature.wave[-1], max(width, 2 * sigma_min)]

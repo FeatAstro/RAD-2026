@@ -17,7 +17,7 @@ from scipy import constants as _const
 from scipy.ndimage import gaussian_filter1d
 from scipy.special import wofz
 
-from .constants import ANGSTROM_TO_CM, C_KMS, FWHM_PER_SIGMA, KMS_TO_CMS
+from . import constants
 
 # tau0 = sqrt(pi) * r_e * c * f * lambda_rest * N / b, with r_e the
 # classical electron radius (see NOTES_perso.tex Sec. 4 -- this is the
@@ -28,13 +28,15 @@ from .constants import ANGSTROM_TO_CM, C_KMS, FWHM_PER_SIGMA, KMS_TO_CMS
 _R_E_CM = _const.physical_constants["classical electron radius"][0] * 1e2
 _C_CMS = _const.c * 1e2
 
-TAU0_CONST = np.sqrt(np.pi) * _R_E_CM * _C_CMS * ANGSTROM_TO_CM / KMS_TO_CMS
+TAU0_CONST = (
+    np.sqrt(np.pi) * _R_E_CM * _C_CMS * constants.ANGSTROM_TO_CM / constants.KMS_TO_CMS
+)
 # tau0 = TAU0_CONST * N[cm^-2] * f * lambda_rest[Angstrom] / b[km/s]
 
 # a = Gamma * lambda_rest / (4 pi b), the Voigt damping parameter (see
 # NOTES_perso.tex Sec. 5 and 6) -- a pure unit-conversion factor
 # (Angstrom -> cm, km/s -> cm/s), no fundamental constants beyond pi.
-A_CONST = ANGSTROM_TO_CM / (4 * np.pi * KMS_TO_CMS)
+A_CONST = constants.ANGSTROM_TO_CM / (4 * np.pi * constants.KMS_TO_CMS)
 # a = A_CONST * gamma[s^-1] * lambda_rest[Angstrom] / b[km/s]
 
 # Largest allowed offset of a pixel from the log-uniform grid, in pixels.
@@ -133,7 +135,7 @@ def _velocity_offset(wave, line, z):
         km/s.
     """
     observed_centre = line.wave_rest * (1 + z)
-    return C_KMS * (wave - observed_centre) / observed_centre
+    return constants.C_KMS * (wave - observed_centre) / observed_centre
 
 
 def _central_optical_depth(line, logN, b):
@@ -153,6 +155,29 @@ def _central_optical_depth(line, logN, b):
     """
     column_density = 10**logN
     return TAU0_CONST * column_density * line.f * line.wave_rest / b
+
+
+def lsf_sigma_kms(spectrum):
+    """Gaussian sigma of the line spread function of the instrument.
+
+    Parameters
+    ----------
+    spectrum : Spectrum
+        `meta` must hold fwhm_kms.
+
+    Returns
+    -------
+    sigma : float
+        km/s.
+
+    Raises
+    ------
+    ValueError
+        If `meta["fwhm_kms"]` is missing.
+    """
+    if "fwhm_kms" not in spectrum.meta:
+        raise ValueError('meta["fwhm_kms"] (LSF FWHM in km/s) is required')
+    return spectrum.meta["fwhm_kms"] / constants.FWHM_PER_SIGMA
 
 
 @dataclass(frozen=True)
@@ -209,11 +234,10 @@ class InstrumentGrid:
         first_edge = np.log10(spectrum.wave[0]) - pixel_dex / 2
         # Subpixel i is centred at first_edge + (i + 0.5) * subpixel_dex
         log_wave = first_edge + subpixel_dex * (np.arange(n_subpixels) + 0.5)
-        lsf_sigma_kms = spectrum.meta["fwhm_kms"] / FWHM_PER_SIGMA
         return cls(
             wave=10**log_wave,
             subpixels=_subpixels_of_each_pixel(pixel_numbers, oversample),
-            lsf_sigma=_kms_to_dex(lsf_sigma_kms) / subpixel_dex,
+            lsf_sigma=_kms_to_dex(lsf_sigma_kms(spectrum)) / subpixel_dex,
         )
 
     def observe(self, flux):
@@ -307,4 +331,4 @@ def _kms_to_dex(velocity):
     -------
     dex : float
     """
-    return velocity / (C_KMS * np.log(10))
+    return velocity / (constants.C_KMS * np.log(10))

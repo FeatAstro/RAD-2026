@@ -6,7 +6,7 @@ import numpy as np
 from astropy.io import fits
 from astropy.table import Table
 
-from .constants import C_KMS, FWHM_PER_SIGMA
+from . import constants
 from .data_classes import Spectrum
 
 # SDSS pixels are uniform in log10(lambda), 1e-4 dex wide
@@ -64,8 +64,10 @@ def _sdss_fwhm_kms(wdisp):
         Median over the spectrum, km/s.
     """
     # A step of d(log10 lambda) is a velocity of ln(10) * d(log10 lambda) * c
-    sigma_kms = np.asarray(wdisp, dtype=float) * SDSS_PIXEL_DEX * np.log(10) * C_KMS
-    return float(np.median(FWHM_PER_SIGMA * sigma_kms))
+    sigma_kms = (
+        np.asarray(wdisp, dtype=float) * SDSS_PIXEL_DEX * np.log(10) * constants.C_KMS
+    )
+    return float(np.median(constants.FWHM_PER_SIGMA * sigma_kms))
 
 
 def _resolution_meta(fwhm_kms):
@@ -81,7 +83,7 @@ def _resolution_meta(fwhm_kms):
     meta : dict
         fwhm_kms and resolving power R.
     """
-    return {"fwhm_kms": fwhm_kms, "R": C_KMS / fwhm_kms}
+    return {"fwhm_kms": fwhm_kms, "R": constants.C_KMS / fwhm_kms}
 
 
 def _sdss_meta(path, header, specobj):
