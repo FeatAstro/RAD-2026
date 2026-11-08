@@ -6,9 +6,7 @@ Work_split.pdf.
 - find_features(spectrum, threshold=4.0, sign=-1)          [Pablo]
     Find the significant features of a Spectrum whose continuum has
     been fitted (continuum.fit_continuum). sign=-1 looks for absorption
-    dips, sign=+1 for emission peaks. A broad line (e.g. a Balmer line
-    with its wings) must come out as ONE feature, not several; lines
-    separated by more than the resolution (e.g. NaI D) as one each.
+    dips, sign=+1 for emission peaks.
     Returns an astropy Table, one row per feature, with columns:
         wave        observed centre, Angstrom (vacuum)
         wave_err    1-sigma uncertainty on `wave`, Angstrom

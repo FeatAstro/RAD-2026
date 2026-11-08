@@ -12,10 +12,10 @@ from spectral_diag.detect import FEATURE_COLUMNS, find_features
 from spectral_diag.detect.significance import (
     feature_windows,
     gaussian_kernel,
-    lsf_sigma_pixels,
     matched_filter_significance,
     relative_signal,
     split_blends,
+    unresolved_line_sigma_in_pixels,
 )
 from spectral_diag.line_profiles import InstrumentGrid, optical_depth
 
@@ -151,7 +151,7 @@ def split_windows_around(spectrum, wave):
         window holds `wave`.
     """
     signal, inverse_variance = relative_signal(spectrum, -1)
-    kernel = gaussian_kernel(lsf_sigma_pixels(spectrum))
+    kernel = gaussian_kernel(unresolved_line_sigma_in_pixels(spectrum))
     significance = matched_filter_significance(signal, inverse_variance, kernel)
     for window in feature_windows(significance, 4.0):
         if spectrum.wave[window.start] <= wave <= spectrum.wave[window.stop - 1]:
@@ -216,6 +216,13 @@ def test_rejects_noise_free_spectrum():
 def test_rejects_missing_resolution():
     spectrum = sdss_like_spectrum([], np.random.default_rng(7))
     del spectrum.meta["fwhm_kms"]
+    with pytest.raises(ValueError):
+        find_features(spectrum)
+
+
+def test_rejects_decreasing_wavelengths():
+    spectrum = sdss_like_spectrum([], np.random.default_rng(8))
+    spectrum.wave[:] = spectrum.wave[::-1].copy()
     with pytest.raises(ValueError):
         find_features(spectrum)
 

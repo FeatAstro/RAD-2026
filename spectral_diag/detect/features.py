@@ -6,15 +6,13 @@ from .measure import measure_feature
 from .significance import (
     feature_windows,
     gaussian_kernel,
-    lsf_sigma_pixels,
     matched_filter_significance,
     relative_signal,
     split_blends,
+    unresolved_line_sigma_in_pixels,
 )
 
-# TODO: flag telluric features (O2, H2O at fixed observed wavelength, ground-based
-# only), e.g. a `telluric` column from an ESO SkyCalc transmission model at the
-# LSF. Not needed for the A0 star: only O2 A (~7598 A) is clearly telluric
+# TODO: flag telluric features (O2, H2O) with a `telluric` column
 FEATURE_COLUMNS = (
     "wave",
     "wave_err",
@@ -30,34 +28,16 @@ FEATURE_COLUMNS = (
 def find_features(spectrum, threshold=4.0, sign=-1):
     """Find the significant absorption (or emission) features of a spectrum.
 
-    Steps:
-    1. Convert the flux to a signal relative to the continuum.
-    2. Slide along the spectrum a Gaussian as wide as the instrument's
-       LSF (the shape of an unresolved line). At each pixel this gives
-       the significance, in sigma, of a line centred there.
-    3. Each group of neighbouring pixels above WINDOW_EDGE_SIGNIFICANCE
-       that contains a pixel above `threshold` is one window, so a
-       broad line with its wings comes out as one feature.
-    4. Split each window at the dips between resolved lines
-       (`split_blends`), e.g. the NaI D doublet. Lines closer than the
-       resolution stay in one feature.
-    5. Measure the centre, depth and equivalent width of each feature.
-
-    The window is meant for detecting and locating the feature. For a
-    broad line it misses the far damping wings, whose depth is below
-    the noise of one resolution element (about 6% of the EW of a
-    Balmer-like line at SNR 50): measure the EW for the curve of growth
-    over a wider window or with a profile fit. A line split off the
-    wing of a broad one (e.g. CaII K on H-epsilon) has a good centre,
-    but its EW includes the wing absorption under it.
+    The EW is approximate: over the detection window it misses the far
+    wings of a broad line (about 6% at SNR 50) and includes the wing under
+    a split line (e.g. CaII K on H-epsilon). Remeasure it for the curve of
+    growth.
 
     Parameters
     ----------
     spectrum : Spectrum
-        `continuum` fitted (NaN pixels are ignored), `error` positive,
-        and `meta["fwhm_kms"]`, the FWHM of the LSF in km/s. Pixels
-        roughly uniform in velocity, as in SDSS; small gaps only shift
-        the filter slightly.
+        With `continuum` fitted, `error` > 0 and `meta["fwhm_kms"]` (LSF
+        FWHM, km/s). Pixels roughly uniform in velocity, as in SDSS.
     threshold : float
         Detection threshold, in sigma.
     sign : {-1, +1}
@@ -77,16 +57,15 @@ def find_features(spectrum, threshold=4.0, sign=-1):
     """
     spectrum.check_valid()
     signal, inverse_variance = relative_signal(spectrum, sign)
-    kernel = gaussian_kernel(lsf_sigma_pixels(spectrum))
+    kernel = gaussian_kernel(unresolved_line_sigma_in_pixels(spectrum))
     significance = matched_filter_significance(signal, inverse_variance, kernel)
     windows = _line_windows(significance, threshold)
     rows = [measure_feature(spectrum, window, sign) for window in windows]
-    return Table(rows=rows, names=FEATURE_COLUMNS) if rows else _empty_table()
+    return Table({name: [row[name] for row in rows] for name in FEATURE_COLUMNS})
 
 
-# TODO: flag the features that come from a split (`blended` column, agree with
-# Gael): cutting at the valley shares their absorption only roughly (NaI D,
-# CaII K on H-epsilon), so their EW needs a joint profile fit after identify
+# TODO: add a `blended` column for split features (agree with Gael): their EW
+# needs a joint profile fit after identify
 def _line_windows(significance, threshold):
     """Feature windows, split so that each holds one resolved line.
 
@@ -106,13 +85,3 @@ def _line_windows(significance, threshold):
     for window in feature_windows(significance, threshold):
         windows.extend(split_blends(significance, window, threshold))
     return windows
-
-
-def _empty_table():
-    """Features table with no rows and the columns of FEATURE_COLUMNS.
-
-    Returns
-    -------
-    features : astropy.table.Table
-    """
-    return Table(names=FEATURE_COLUMNS, dtype=[float] * len(FEATURE_COLUMNS))
