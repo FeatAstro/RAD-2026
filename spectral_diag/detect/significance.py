@@ -8,6 +8,7 @@ at the dips between them.
 import numpy as np
 
 from .. import constants
+from ..continuum import normalise
 from ..line_profiles import lsf_sigma_kms
 
 # Significance (sigma) where a window ends: low enough to keep the wings of a
@@ -40,10 +41,10 @@ def relative_signal(spectrum, sign):
         1 / sigma^2 of `signal`; 0 where the continuum is NaN.
     """
     valid = np.isfinite(spectrum.continuum)
-    signal = np.where(valid, sign * (spectrum.flux / spectrum.continuum - 1), 0.0)
+    normalised = normalise(spectrum, spectrum.continuum)
+    signal = np.where(valid, sign * (normalised.flux - 1), 0.0)
     # TODO: add the continuum error (needs the covariance), as in `equivalent_width`
-    relative_error = spectrum.error / spectrum.continuum
-    inverse_variance = np.where(valid, 1 / relative_error**2, 0.0)
+    inverse_variance = np.where(valid, 1 / normalised.error**2, 0.0)
     return signal, inverse_variance
 
 
