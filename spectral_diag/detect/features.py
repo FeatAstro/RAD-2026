@@ -1,6 +1,6 @@
 """Detection of the significant features of a spectrum."""
 
-from astropy.table import Table
+from astropy.table import Column, Table
 
 from .measure import measure_feature
 from .significance import (
@@ -23,6 +23,9 @@ FEATURE_COLUMNS = (
     "ew_err",
     "snr",
 )
+# Printing format of every column. It changes only the display: the values
+# keep full precision
+DISPLAY_FORMAT = ".3f"
 
 
 def find_features(spectrum, threshold=4.0, sign=-1):
@@ -61,7 +64,11 @@ def find_features(spectrum, threshold=4.0, sign=-1):
     significance = matched_filter_significance(signal, inverse_variance, kernel)
     windows = _line_windows(significance, threshold)
     rows = [measure_feature(spectrum, window, sign) for window in windows]
-    return Table({name: [row[name] for row in rows] for name in FEATURE_COLUMNS})
+    columns = [
+        Column([row[name] for row in rows], name=name, format=DISPLAY_FORMAT)
+        for name in FEATURE_COLUMNS
+    ]
+    return Table(columns)
 
 
 # TODO: add a `blended` column for split features (agree with Gael): their EW

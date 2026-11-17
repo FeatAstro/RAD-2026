@@ -20,7 +20,7 @@ Step & Module & Status \\
 \midrule
 1. Read the spectrum & \texttt{mast\_archive}, \texttt{sdss\_reader} & done (Pablo) \\
 2. Fit and remove the continuum & \texttt{continuum.fit\_continuum}, \texttt{normalise} & done (Gaël) \\
-3. Detect the significant dips & \texttt{detect.find\_features} & done (Pablo); telluric flag to add \\
+3. Detect the significant dips & \texttt{detect.find\_features} & done (Pablo); tellurics to flag \\
 4. Identify them (comb per species) & \texttt{line\_list}, \texttt{detect.identify} & \textbf{to do -- Gaël} \\
 5. Equivalent widths & \texttt{equivalent\_width.measure\_ew} & done; continuum error to add \\
 6. Curve of growth: $N$, $b$ per species & \texttt{curve\_of\_growth.fit\_cog} & done (on synthetic data) \\
@@ -34,11 +34,11 @@ Step & Module & Status \\
 \textbf{Pablo -- data $\to$ features} & \textbf{Gaël -- features $\to$ physics}\\
 \midrule
 \begin{itemize}
-\item \texttt{detect.find\_features}: matched Gaussian filter as wide as the LSF, threshold 4$\sigma$ (done)
-\item Windows by two thresholds (a Balmer line with its wings = one feature), split between resolved lines (NaD = two features); centre and its error, depth, EW (done)
-\item Plot of the detected features on the spectrum (notebook \texttt{06\_feature\_detection})
-\item Telluric band masks; later NIST queries for the line list
-\item Tests: synthetic spectra with known line positions (pytest, done)
+\item \emph{Done:} \texttt{detect.find\_features}: matched Gaussian filter of one resolution element, threshold 4$\sigma$
+\item \emph{Done:} windows grown to the line wings and split between resolved blended lines; centre (Gaussian fit) and its error, depth, EW
+\item \emph{Done:} tests on synthetic spectra with known lines (pytest); notebook \texttt{06\_feature\_detection} on the A0 star
+\item \emph{To do:} flag telluric bands (O$_2$, H$_2$O); \texttt{blended} column; cut windows at data gaps; continuum error in the significance
+\item \emph{To do:} plot of the detected features in \texttt{plots}
 \end{itemize}
 &
 \begin{itemize}
@@ -57,8 +57,8 @@ Step & Module & Status \\
 \begin{tabular}{@{}p{2.5cm}p{14.2cm}@{}}
 \toprule
 Until Oct 14 & Repo, data classes, synthetic generator; profiles, EW, curve of growth validated on synthetic spectra.\\
-Oct 14 -- Nov 18 & Real star: reading (done), continuum (done), detection (done, Pablo), line list and comb identification (Gaël), EWs with continuum error, curve of growth for CaII / Balmer. Demo of the full chain.\\
-Nov 18 -- Dec 8 & Comb on a synthetic spectrum at unknown $z$; uncertainties; interactive viz; optional emission-line extension (planetary nebula); slides and rehearsal.\\
+Oct 14 -- Nov 18 & Real star: reading, continuum and detection (done); line list from NIST (\texttt{line\_list.query\_nist}, done); comb identification (Gaël, in progress).\\
+Nov 18 -- Dec 8 & Comb identification; EWs with continuum error; curve of growth for CaII / Balmer; demo of the full chain. Comb on a synthetic spectrum at unknown $z$; uncertainties; interactive viz; optional emission-line extension (planetary nebula); slides and rehearsal.\\
 Dec 9 & Oral presentation.\\
 \bottomrule
 \end{tabular}
