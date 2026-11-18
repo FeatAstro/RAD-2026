@@ -44,6 +44,8 @@ Thumbs.db
 # Data files (re-downloadable, e.g. with io.download_mast_spectra)
 data/*
 !data/.gitkeep
+# Atomic line tables from NIST (small, needed offline)
+!data/line_lists/
 
 # Teachers' material (not ours to redistribute)
 Projects.pdf
@@ -57,6 +59,7 @@ REFERENCE_perso.tex
 REFERENCE_perso.pdf
 Notes.md
 guide_perso/
+guide_perso/fits_guide/
 #NOTES_perso_*.png
 
 # LaTeX build byproducts

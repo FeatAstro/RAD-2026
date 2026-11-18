@@ -179,11 +179,14 @@ Details and interface in `Work_split.pdf`.
   re-embedded in each -- avoids duplicating ~400KB of images per
   notebook. Going forward, notebooks are organized by validation
   theme rather than 1:1 per function.
-- `line_list.py`: `get_lines(species)` returns the tabulated lines of
-  CIV (2), SiII (6) or FeII (7) as `Line` objects. Wavelengths and f
-  are from Verner, Verner & Ferland 1996 (arXiv:atom-ph/9604003);
-  gamma is the sum of the tabulated A values over the listed decays of
-  the upper level.
+- `line_list.py`: `get_lines(species, selection)` returns the lines of a
+  species as `Line` objects, from the NIST Atomic Spectra Database.
+  `download_line_table(species)` queries NIST once and saves the table
+  in `data/line_lists/` (committed), so `get_lines` works offline.
+  Saved so far: HI, CII, CIV, NI, NV, OI, OVI, NaI, MgII, AlII, SiII,
+  SiIII, SiIV, SII, CaII, FeII. gamma sums the decay rates of both
+  levels; for hydrogen, `LineSelection(multiplet_totals=True)` gives one
+  line per n -> n' instead of its fine-structure components.
 - `curve_of_growth.py`: `theoretical_ew(line, logN, b, z=0.0)` integrates
   `1 - exp(-tau)` over the Voigt profile in the variable `x = dv/b`,
   so it is valid in all three regimes. `fit_cog(lines, ews, z=0.0)`

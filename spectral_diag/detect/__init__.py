@@ -16,7 +16,8 @@ Work_split.pdf.
                     max(flux / continuum) - 1 (emission); always positive
         ew          equivalent width over [wave_min, wave_max], Angstrom;
                     positive for absorption and for emission
-        ew_err      1-sigma uncertainty on `ew`, Angstrom
+        ew_err      1-sigma uncertainty on `ew`, Angstrom; includes the
+                    continuum error if `spectrum.continuum_error` is set
         snr         detection significance, ew / ew_err
 
 - identify(features, species, v_range=(-600, 600), tol=None)   [Gael]

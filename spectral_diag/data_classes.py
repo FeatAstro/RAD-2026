@@ -26,6 +26,9 @@ class Spectrum:
         1-sigma flux uncertainty per pixel, same units as `flux`.
     continuum : array, optional
         Continuum level at each wavelength, filled in by `continuum`.
+    continuum_error : array, optional
+        1-sigma error of `continuum`, same units as `flux`
+        (`ContinuumFit.error`).
     meta : dict
         Free-form metadata, filled in by `spectrum_reader` and
         `synthetic_spectrum`. Keys used so far (all optional):
@@ -43,6 +46,7 @@ class Spectrum:
     flux: np.ndarray
     error: np.ndarray
     continuum: np.ndarray | None = None
+    continuum_error: np.ndarray | None = None
     meta: dict = field(default_factory=dict)
 
     def check_valid(self):
@@ -75,18 +79,34 @@ class Spectrum:
         Returns
         -------
         cut : Spectrum
-            `continuum` is cut too when set, and stays None otherwise.
+            `continuum` and `continuum_error` are cut too when set, and
+            stay None otherwise.
         """
-        continuum = None
-        if self.continuum is not None:
-            continuum = self.continuum[window]
         return replace(
             self,
             wave=self.wave[window],
             flux=self.flux[window],
             error=self.error[window],
-            continuum=continuum,
+            continuum=_cut_if_set(self.continuum, window),
+            continuum_error=_cut_if_set(self.continuum_error, window),
         )
+
+
+def _cut_if_set(values, window):
+    """The pixels `window` of `values`, or None if `values` is None.
+
+    Parameters
+    ----------
+    values : array or None
+    window : slice
+
+    Returns
+    -------
+    cut : array or None
+    """
+    if values is None:
+        return None
+    return values[window]
 
 
 @dataclass(frozen=True)
