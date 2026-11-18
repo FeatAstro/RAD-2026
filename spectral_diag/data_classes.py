@@ -27,7 +27,7 @@ class Spectrum:
     continuum : array, optional
         Continuum level at each wavelength, filled in by `continuum`.
     meta : dict
-        Free-form metadata, filled in by `sdss_reader` and
+        Free-form metadata, filled in by `spectrum_reader` and
         `synthetic_spectrum`. Keys used so far (all optional):
         instrument, source, obs_id -- provenance;
         ra, dec (deg), mjd, exptime (s) -- observation;
