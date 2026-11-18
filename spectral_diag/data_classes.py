@@ -30,7 +30,7 @@ class Spectrum:
         1-sigma error of `continuum`, same units as `flux`
         (`ContinuumFit.error`).
     meta : dict
-        Free-form metadata, filled in by `sdss_reader` and
+        Free-form metadata, filled in by `spectrum_reader` and
         `synthetic_spectrum`. Keys used so far (all optional):
         instrument, source, obs_id -- provenance;
         ra, dec (deg), mjd, exptime (s) -- observation;

@@ -12,7 +12,7 @@ lines. The detection code takes a sign option so that emission spectra
 later.
 
 ## Pipeline
-1. **Read** a real spectrum (MAST / SDSS) -- done (`mast_archive`, `sdss_reader`)
+1. **Read** a real spectrum (MAST / SDSS) -- done (`mast_archive`, `spectrum_reader`)
 2. **Fit and remove the continuum** -- done (`continuum`)
 3. **Detect** the significant dips -> table of features -- to do (`detect.find_features`)
 4. **Identify** them with a "comb" per species -- to do (`line_list`, `detect.identify`)
@@ -43,7 +43,7 @@ and the matched dips are removed before the next one.
   2182-53905-0101; 3810-9210 A, vacuum wavelengths, 69 km/s pixels,
   resolution R ~ 2000, S/N ~ 60). Downloaded with
   `mast_archive.query_mast` / `mast_archive.download_mast_spectra` into `data/mast/`
-  (gitignored: run `notebooks/MAST_query.ipynb` once). Expected lines:
+  (gitignored: section 2 of `notebooks/full_star_tutorial.ipynb` downloads it). Expected lines:
   Balmer and Paschen series, CaII H&K and 8498/8542/8662 triplet,
   MgII 4481, OI 7772-7775, NaD (probably interstellar), many weak Fe
   lines, telluric O2 and H2O bands.
@@ -53,7 +53,7 @@ and the matched dips are removed before the next one.
 
 ## Layout
 ```
-spectral_diag/   Python package (constants, data_classes, sdss_reader, mast_archive, synthetic_spectrum,
+spectral_diag/   Python package (constants, data_classes, spectrum_reader, mast_archive, synthetic_spectrum,
                  continuum, detect, line_list, line_profiles, equivalent_width,
                  curve_of_growth, uncertainty, plots)
 tests/           pytest suite (synthetic checks), run with `pytest`
@@ -66,7 +66,7 @@ Current structure: `spectral_diag/` has the package skeleton (shared
 `Spectrum`/`Line`/`Absorber` classes in `data_classes.py`, one stub module per
 planned component). Implemented so far: `line_profiles` (Gaussian and Voigt
 optical depth), `equivalent_width`, `synthetic_spectrum`, `mast_archive`,
-`sdss_reader`, `continuum`, `line_list` (CIV, SiII, FeII)
+`spectrum_reader`, `continuum`, `line_list` (CIV, SiII, FeII)
 and `curve_of_growth` (see Progress log below).
 
 ## Installation
@@ -215,7 +215,7 @@ Details and interface in `Work_split.pdf`.
   chain is tested on the A0 star SDSS J172637.24+264127.6 (SDSS
   2182-53905-0101, 3810-9210 A, R ~ 2000, S/N 62). `mast_archive.query_mast`,
   `mast_archive.download_mast_spectra` and `sdss_reader.read_sdss_spec` (Pablo) fetch and
-  read it (`notebooks/MAST_query.ipynb`); a pytest suite (`tests/`)
+  read it (`notebooks/full_star_tutorial.ipynb`, section 2); a pytest suite (`tests/`)
   automates the earlier notebook checks.
 - `continuum.py`: `fit_continuum(spectrum, knot_spacing=250, k_low=2,
   k_high=4, grow=3, exclude=None)` fits a weighted cubic spline through
