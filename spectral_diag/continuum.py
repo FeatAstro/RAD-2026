@@ -111,13 +111,18 @@ def normalise(spectrum, continuum):
     -------
     normalised : Spectrum
         Flux and error divided by the continuum, which becomes 1. The
-        error does not include the error of the continuum.
+        error does not include the error of the continuum, kept apart
+        in `continuum_error` (divided too, when set).
     """
+    continuum_error = None
+    if spectrum.continuum_error is not None:
+        continuum_error = spectrum.continuum_error / continuum
     return replace(
         spectrum,
         flux=spectrum.flux / continuum,
         error=spectrum.error / continuum,
         continuum=np.ones_like(continuum),
+        continuum_error=continuum_error,
     )
 
 

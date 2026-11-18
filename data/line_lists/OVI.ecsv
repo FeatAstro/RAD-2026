@@ -1,0 +1,27 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - {name: wave, datatype: float64}
+# - {name: f, datatype: float64}
+# - {name: gamma, datatype: float64}
+# - {name: e_low, datatype: float64}
+# - {name: electric_dipole, datatype: bool}
+# - {name: multiplet_total, datatype: bool}
+# meta: !!omap
+# - {source: 'NIST Atomic Spectra Database, via astroquery.nist'}
+# schema: astropy-2.0
+wave f gamma e_low electric_dipole multiplet_total
+1031.927 0.133 416000000.0 0.0 True False
+1037.6154 0.066 409000000.0 0.0 True False
+1080.88 0.536 35824900000.0 107.03975 True False
+1081.522 0.481 35882460000.0 107.04767 True False
+1081.627 0.0535 35835500000.0 107.04767 True False
+1126.351 0.000601 37776260000.0 107.50393 True False
+1126.465 0.00841 37729300000.0 107.50393 True False
+1126.469 0.009 37786260000.0 107.50509 True False
+1171.561 0.101 22729600000.0 107.03975 True False
+1172.439 0.101 22740200000.0 107.04767 True False
+3812.43 0.224 43351400000.0 79.35482 True False
+3835.33 0.111 43350500000.0 79.35482 True False
+9344.31 0.309 26956200000.0 105.7208 True False
+9400.44 0.154 26945600000.0 105.7208 True False

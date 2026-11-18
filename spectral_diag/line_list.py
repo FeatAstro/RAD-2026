@@ -1,57 +1,30 @@
-"""Atomic data for common ISM/CGM lines.
+"""Atomic data of absorption lines, from the NIST Atomic Spectra Database.
 
-Two sources:
-
-- `get_lines` (offline): rest wavelengths (vacuum) and oscillator
-  strengths from Verner, Verner & Ferland 1996, Atomic Data and Nuclear
-  Data Tables 64, 1 (arXiv:atom-ph/9604003), Table 1. gamma is the sum
-  of the tabulated A_ki over every decay of the upper level listed in
-  that table (the decays to the ground term). Decays to other terms are
-  not in the table, so gamma is a slight underestimate for FeII.
-- `query_nist` (online): NIST Atomic Spectra Database (Kramida et al.,
-  https://physics.nist.gov/asd), queried with astroquery.nist. Ground
-  level only by default; excited lower levels (fine structure, stellar
-  lines) via `LineSelection.e_low_max`. gamma sums A_ki over every decay
-  of the upper and lower levels that NIST lists.
+NIST ASD (Kramida et al., https://physics.nist.gov/asd), queried with
+astroquery.nist. The lines of each species are downloaded once by
+`download_line_table` and saved in data/line_lists/ (committed), so that
+`get_lines` works offline. gamma sums A_ki over every decay of the upper
+and lower levels that NIST lists.
 """
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 import astropy.units as u
 import numpy as np
+from astropy.table import Table, vstack
 from astroquery.nist import Nist
 
 from .data_classes import Line
 
-# species -> (wave_rest [Angstrom], f, gamma [s^-1])
-_VERNER96_LINES = {
-    "CIV": [
-        (1548.1950, 1.90e-1, 2.64e8),
-        (1550.7700, 9.52e-2, 2.64e8),
-    ],
-    "SiII": [
-        (1190.416, 2.93e-1, 4.100e9),
-        (1193.290, 5.84e-1, 4.100e9),
-        (1260.422, 1.18e0, 2.972e9),
-        (1304.370, 8.71e-2, 1.016e9),
-        (1526.707, 1.32e-1, 1.121e9),
-        (1808.013, 2.56e-3, 3.125e6),
-    ],
-    "FeII": [
-        (1608.4511, 8.92e-2, 3.812e8),
-        (2344.2139, 1.26e-1, 2.542e8),
-        (2367.5905, 4.25e-3, 3.293e8),
-        (2374.4612, 5.27e-2, 3.304e8),
-        (2382.7652, 3.43e-1, 3.350e8),
-        (2586.6500, 5.48e-2, 2.864e8),
-        (2600.1729, 2.40e-1, 2.892e8),
-    ],
-}
-
+LINE_LIST_DIR = Path(__file__).resolve().parent.parent / "data" / "line_lists"
 # Wavelength range of the NIST query, Angstrom. Wider than any selection
 # so that gamma sums every decay of each level, not only those in range
 _NIST_GAMMA_RANGE = (100, 100_000)
+# Wavelength range saved to the line tables, Angstrom: from the Lyman
+# limit to the red end of SDSS
+_SAVED_WAVE_RANGE = (900, 10_000)
 # NIST column holding "E_i - E_k" (eV); the spaces are part of its name
 _NIST_ENERGY_COLUMN = "Ei           Ek"
 # Separator in NIST level labels "config | term | J"
@@ -72,69 +45,107 @@ class LineSelection:
         Maximum lower-level energy, eV. 0: ground level only (cold
         ISM/CGM gas); ~0.1: also ground-term fine structure (e.g. CII*
         1335, SiII* 1264); np.inf: all levels (stellar spectra).
+    multiplet_totals : bool
+        False: the fine-structure components of each line. True: one
+        line per n -> n' transition, the total that NIST lists for
+        hydrogenic ions (HI, HeII) only. Use it for hydrogen: the
+        components of a line lie within ~10 km/s (Halpha: 7 within
+        0.2 Angstrom), far below the resolution of SDSS or COS, and
+        their f cannot simply be added when the lower level is split
+        (n >= 2). gamma is then the mean over the sublevels, e.g.
+        4.7e8 s^-1 for Lyman alpha instead of 6.3e8 for the 2p level.
     """
 
     wave_min: float = 900.0
     wave_max: float = 3000.0
     f_min: float = 0.0
     e_low_max: float = 0.0
+    multiplet_totals: bool = False
 
 
-def get_lines(species):
-    """Return the Verner+96 transitions of `species` (offline).
+def get_lines(species, selection=LineSelection()):
+    """Absorption lines of `species` that pass `selection`.
 
-    Parameters
-    ----------
-    species : str
-        Species name, e.g. "CIV", "SiII", "FeII".
-
-    Returns
-    -------
-    lines : list of Line
-    """
-    if species not in _VERNER96_LINES:
-        raise KeyError(
-            f"no lines tabulated for {species!r}; available: {sorted(_VERNER96_LINES)}"
-        )
-    return [
-        Line(species, wave_rest, f, gamma)
-        for wave_rest, f, gamma in _VERNER96_LINES[species]
-    ]
-
-
-def query_nist(species, selection=LineSelection()):
-    """Query NIST ASD for the absorption lines of `species`.
-
-    Keeps electric-dipole transitions that pass `selection`: forbidden
-    lines are too weak to absorb in ISM/CGM gas, and f_lu is defined
-    for electric dipole.
+    Reads the table saved in LINE_LIST_DIR; run `download_line_table`
+    first for a species that has none.
 
     Parameters
     ----------
     species : str
-        Species name, e.g. "CIV" (sent to NIST as "C IV").
+        Species name, e.g. "CIV", "SiII", "HI".
     selection : LineSelection
-        Wavelength range, minimum f and maximum lower-level energy.
 
     Returns
     -------
     lines : list of Line
         Sorted by wavelength.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no table is saved for `species`.
+    ValueError
+        If no line passes `selection`.
     """
-    transitions = _nist_transitions(species)
-    _add_damping_constants(transitions)
-    selected = transitions[_absorption_mask(transitions, selection)]
+    table = Table.read(_line_table_path(species))
+    selected = table[_selection_mask(table, selection)]
     lines = [
-        Line(species, float(row["wave"]), float(row["fik"]), float(row["gamma"]))
+        Line(species, float(row["wave"]), float(row["f"]), float(row["gamma"]))
         for row in selected
     ]
     if not lines:
-        raise ValueError(f"no NIST lines for {species!r} with {selection}")
+        raise ValueError(f"no lines for {species!r} with {selection}")
     return sorted(lines, key=lambda line: line.wave_rest)
 
 
+def download_line_table(species):
+    """Query NIST for the lines of `species` and save them in LINE_LIST_DIR.
+
+    Saves every line with an oscillator strength in _SAVED_WAVE_RANGE:
+    the fine-structure components and, for hydrogenic ions, the n -> n'
+    totals, each with its gamma. `get_lines` selects among them.
+
+    Parameters
+    ----------
+    species : str
+        Species name, e.g. "CIV" (sent to NIST as "C IV").
+
+    Returns
+    -------
+    path : Path
+        The saved table (ECSV).
+    """
+    transitions = _nist_transitions(species)
+    fine_structure = _is_fine_structure_resolved(transitions)
+    table = vstack(
+        [
+            _line_table(transitions[fine_structure], multiplet_total=False),
+            _line_table(transitions[~fine_structure], multiplet_total=True),
+        ]
+    )
+    table.meta["source"] = "NIST Atomic Spectra Database, via astroquery.nist"
+    path = _line_table_path(species)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    table.write(path, overwrite=True)
+    return path
+
+
+def _line_table_path(species):
+    """Path of the saved line table of `species`.
+
+    Parameters
+    ----------
+    species : str
+
+    Returns
+    -------
+    path : Path
+    """
+    return LINE_LIST_DIR / f"{species}.ecsv"
+
+
 def _nist_transitions(species):
-    """Fetch the NIST transitions of `species` usable for absorption lines.
+    """Fetch the NIST transitions of `species` that have an A_ki.
 
     Parameters
     ----------
@@ -144,8 +155,7 @@ def _nist_transitions(species):
     Returns
     -------
     table : astropy.table.Table
-        Transitions with A_ki between fine-structure levels, with the
-        extra columns of `_add_derived_columns`.
+        With the extra columns of `_add_derived_columns`.
     """
     table = Nist.query(
         _NIST_GAMMA_RANGE[0] * u.AA,
@@ -155,7 +165,60 @@ def _nist_transitions(species):
     )
     _add_derived_columns(table)
     has_einstein_a = ~np.ma.getmaskarray(table["Aki"])
-    return table[_is_fine_structure_resolved(table) & has_einstein_a]
+    return table[has_einstein_a]
+
+
+def _line_table(transitions, multiplet_total):
+    """Lines of `transitions` with an f in _SAVED_WAVE_RANGE, as a compact table.
+
+    gamma is computed within `transitions`, so that fine-structure
+    components and multiplet totals each use their own decay rates.
+
+    Parameters
+    ----------
+    transitions : astropy.table.Table
+        Output of `_nist_transitions`, either only fine-structure
+        components or only multiplet totals.
+    multiplet_total : bool
+        Value of the "multiplet_total" column.
+
+    Returns
+    -------
+    table : astropy.table.Table
+        Columns wave (Angstrom), f, gamma (s^-1), e_low (eV),
+        electric_dipole and multiplet_total.
+    """
+    f = np.ma.filled(transitions["fik"], np.nan).astype(float)
+    wave = np.asarray(transitions["wave"], dtype=float)
+    keep = _rows_to_save(f, wave)
+    # NIST leaves "Type" empty for allowed electric-dipole (E1) lines
+    electric_dipole = np.ma.getmaskarray(transitions["Type"])
+    table = Table()
+    table["wave"] = wave[keep]
+    table["f"] = f[keep]
+    table["gamma"] = _damping_constants(transitions)[keep]
+    table["e_low"] = np.asarray(transitions["e_low"], dtype=float)[keep]
+    table["electric_dipole"] = electric_dipole[keep]
+    table["multiplet_total"] = np.full(keep.sum(), multiplet_total)
+    return table
+
+
+def _rows_to_save(f, wave):
+    """True for lines with an oscillator strength inside _SAVED_WAVE_RANGE.
+
+    Parameters
+    ----------
+    f : array
+        NaN where NIST gives none.
+    wave : array
+        Angstrom.
+
+    Returns
+    -------
+    keep : array of bool
+    """
+    # NaN fails every comparison, so lines without f are dropped
+    return (f > 0) & (wave >= _SAVED_WAVE_RANGE[0]) & (wave <= _SAVED_WAVE_RANGE[1])
 
 
 def _add_derived_columns(table):
@@ -178,8 +241,8 @@ def _is_fine_structure_resolved(table):
     """True for transitions whose two levels have a J value.
 
     Hydrogenic ions also list the n -> n' total of each multiplet
-    (levels without J) next to its fine-structure components; dropping
-    the totals avoids counting the same absorption twice.
+    (levels without J) next to its fine-structure components; keeping
+    only one of the two avoids counting the same absorption twice.
 
     Parameters
     ----------
@@ -203,20 +266,29 @@ def _is_fine_structure_resolved(table):
     )
 
 
-def _add_damping_constants(table):
-    """Add "gamma" (s^-1), the decay rates of both levels, to `table`.
+def _damping_constants(table):
+    """Damping constant of each transition: decay rates of both levels.
 
     Parameters
     ----------
     table : astropy.table.Table
-        Output of `_nist_transitions`, modified in place.
+        Output of `_nist_transitions`, or a subset of it.
+
+    Returns
+    -------
+    gamma : array
+        s^-1.
     """
     decay_rates = _decay_rates(table)
     # The ground level does not decay, so it is missing from decay_rates
-    table["gamma"] = [
-        decay_rates[upper_level] + decay_rates.get(lower_level, 0.0)
-        for lower_level, upper_level in zip(table["lower_level"], table["upper_level"])
-    ]
+    return np.array(
+        [
+            decay_rates[upper_level] + decay_rates.get(lower_level, 0.0)
+            for lower_level, upper_level in zip(
+                table["lower_level"], table["upper_level"]
+            )
+        ]
+    )
 
 
 def _decay_rates(table):
@@ -238,32 +310,29 @@ def _decay_rates(table):
     return decay_rates
 
 
-def _absorption_mask(table, selection):
-    """True for electric-dipole transitions that pass `selection`.
+def _selection_mask(table, selection):
+    """True for the electric-dipole lines of `table` that pass `selection`.
+
+    Forbidden lines (M1, E2) are too weak to absorb in ISM/CGM gas, and
+    f_lu is defined for electric dipole.
 
     Parameters
     ----------
     table : astropy.table.Table
-        Output of `_nist_transitions`.
+        Saved line table (see `_line_table`).
     selection : LineSelection
 
     Returns
     -------
     mask : array of bool
     """
-    # NaN (missing f) fails every comparison, so those lines are dropped
-    fik = np.ma.filled(table["fik"], np.nan)
-    wave = np.asarray(table["wave"])
-    # Only allowed electric-dipole (E1) lines: forbidden ones (M1, E2) are
-    # too weak to absorb in ISM/CGM gas, and f_lu is defined for E1.
-    # NIST leaves "Type" empty for E1 transitions
-    is_electric_dipole = np.ma.getmaskarray(table["Type"])
     return (
-        is_electric_dipole
+        np.asarray(table["electric_dipole"])
+        & (np.asarray(table["multiplet_total"]) == selection.multiplet_totals)
         & (np.asarray(table["e_low"]) <= selection.e_low_max)
-        & (fik >= selection.f_min)
-        & (wave >= selection.wave_min)
-        & (wave <= selection.wave_max)
+        & (np.asarray(table["f"]) >= selection.f_min)
+        & (np.asarray(table["wave"]) >= selection.wave_min)
+        & (np.asarray(table["wave"]) <= selection.wave_max)
     )
 
 
@@ -283,9 +352,13 @@ def _wavelengths(table):
     wave : array
         Angstrom, NaN if neither is given.
     """
-    ritz = np.ma.filled(table["Ritz"], np.nan)
-    observed = np.ma.filled(table["Observed"], np.nan)
-    return np.where(np.isnan(ritz), observed, ritz)
+    waves = []
+    for ritz, observed in zip(table["Ritz"], table["Observed"]):
+        wave = _first_number(ritz)
+        if np.isnan(wave):
+            wave = _first_number(observed)
+        waves.append(wave)
+    return np.array(waves)
 
 
 def _level_id(label):
@@ -338,5 +411,27 @@ def _lower_energy(entry):
     e_low : float
         eV, NaN if missing.
     """
+    return _first_number(entry)
+
+
+def _first_number(entry):
+    """First number in a NIST table entry.
+
+    NIST entries can be numbers, masked, or strings with markers
+    (e.g. Ritz wavelength "6107.955+", energy "[0.000000] - 8.008258").
+
+    Parameters
+    ----------
+    entry : str, float or masked
+
+    Returns
+    -------
+    number : float
+        NaN if the entry holds no number.
+    """
+    if entry is np.ma.masked:
+        return np.nan
     match = re.search(r"\d+\.?\d*", str(entry))
-    return float(match[0]) if match else np.nan
+    if match is None:
+        return np.nan
+    return float(match[0])
