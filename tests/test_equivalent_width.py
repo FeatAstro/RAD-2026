@@ -39,3 +39,31 @@ def test_cog_regime_slopes(line):
     assert abs(W[0] / ew_linear(line, logNs[0]) - 1) < 0.01
     assert abs(slope_low - 1) < 0.02
     assert abs(slope_high - 0.5) < 0.05
+
+
+def test_continuum_error_flat_matches_analytic():
+    # Flat continuum with a constant error, fully correlated: the EW error
+    # is (window width - W) * continuum error / continuum
+    wave = np.linspace(5000, 5010, 1001)
+    flux = np.full(wave.size, 0.6)
+    continuum = np.ones(wave.size)
+    relative_continuum_error = 0.01
+    continuum_error = np.full(wave.size, relative_continuum_error)
+    W, W_err = measure_ew(wave, flux, continuum, continuum_error=continuum_error)
+    window_width = wave[-1] - wave[0]
+    expected = (window_width - W) * relative_continuum_error
+    np.testing.assert_allclose(W_err, expected)
+
+
+def test_noise_and_continuum_errors_add_in_quadrature():
+    wave = np.linspace(5000, 5010, 1001)
+    flux = np.full(wave.size, 0.6)
+    continuum = np.ones(wave.size)
+    error = np.full(wave.size, 0.05)
+    continuum_error = np.full(wave.size, 0.01)
+    _, noise_only = measure_ew(wave, flux, continuum, error)
+    _, continuum_only = measure_ew(
+        wave, flux, continuum, continuum_error=continuum_error
+    )
+    _, total = measure_ew(wave, flux, continuum, error, continuum_error)
+    np.testing.assert_allclose(total, np.hypot(noise_only, continuum_only))

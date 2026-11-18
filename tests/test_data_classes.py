@@ -25,6 +25,7 @@ def _spectrum(continuum):
         flux=2.0 * pixels,
         error=3.0 * pixels,
         continuum=continuum,
+        continuum_error=continuum,
         meta={"source": "test"},
     )
 
@@ -32,13 +33,14 @@ def _spectrum(continuum):
 def test_cut_keeps_window_of_every_array():
     spectrum = _spectrum(continuum=np.linspace(1.0, 2.0, N_PIXELS))
     cut = spectrum.cut(WINDOW)
-    for name in ("wave", "flux", "error", "continuum"):
+    for name in ("wave", "flux", "error", "continuum", "continuum_error"):
         assert np.array_equal(getattr(cut, name), getattr(spectrum, name)[WINDOW])
 
 
 def test_cut_without_continuum_keeps_none():
     cut = _spectrum(continuum=None).cut(WINDOW)
     assert cut.continuum is None
+    assert cut.continuum_error is None
     assert len(cut.wave) == WINDOW.stop - WINDOW.start
 
 

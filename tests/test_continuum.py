@@ -43,6 +43,7 @@ BROAD_ABSORBER = Absorber("Y", 0.0, 15.5, 20.0, [BROAD_LINE])
 BROAD_EW_HALF_WINDOW = 120.0
 N_REALISATIONS = 5
 MAX_RELATIVE_EW_BIAS = 0.08
+N_CONTINUUM_ERROR_REALISATIONS = 100
 
 
 def _blackbody_shape(wave, temperature):
@@ -221,3 +222,31 @@ def test_broad_line_ew_biased_low_more_with_close_knots():
     wide_knots_bias = _mean_broad_line_ew_bias(250.0)
     assert close_knots_bias < wide_knots_bias < 0
     assert abs(wide_knots_bias) < MAX_RELATIVE_EW_BIAS * true_W
+
+
+def test_ew_continuum_error_matches_scatter_of_fitted_continuum():
+    # Spread over realisations of W(fitted continuum) - W(true continuum),
+    # against the predicted continuum part of the EW error
+    line = Line("X", 5000.0, 0.3, 1e8)
+    absorber = Absorber("X", 0.0, 14.0, 60.0, [line])
+    window = {"wave_min": 4995.0, "wave_max": 5005.0}
+    ew_shifts, predicted_errors = [], []
+    for seed in range(N_CONTINUUM_ERROR_REALISATIONS):
+        spectrum = _noisy(WAVE, CONTINUUM, [absorber], seed)
+        fit = fit_continuum(spectrum)
+        W_fit, W_err = measure_ew(
+            WAVE, spectrum.flux, fit.continuum, continuum_error=fit.error, **window
+        )
+        W_true, _ = measure_ew(WAVE, spectrum.flux, CONTINUUM, **window)
+        ew_shifts.append(W_fit - W_true)
+        predicted_errors.append(W_err)
+    ratio = np.std(ew_shifts) / np.mean(predicted_errors)
+    assert 0.7 < ratio < 1.4
+
+
+def test_normalise_divides_continuum_error():
+    spectrum = _noisy(WAVE, CONTINUUM)
+    fit = fit_continuum(spectrum)
+    spectrum.continuum_error = fit.error
+    normalised = normalise(spectrum, fit.continuum)
+    np.testing.assert_allclose(normalised.continuum_error, fit.error / fit.continuum)

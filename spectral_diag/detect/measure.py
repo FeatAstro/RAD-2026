@@ -19,7 +19,8 @@ def measure_feature(spectrum, window, sign):
     Parameters
     ----------
     spectrum : Spectrum
-        The whole spectrum, with `continuum` and `meta["fwhm_kms"]`.
+        The whole spectrum, with `continuum` and `meta["fwhm_kms"]`. The
+        EW error includes the continuum error if `continuum_error` is set.
     window : slice
         Pixels of the feature.
     sign : {-1, +1}
@@ -35,7 +36,11 @@ def measure_feature(spectrum, window, sign):
     signal, inverse_variance = relative_signal(feature, sign)
     centre, centre_err = _fit_centre(feature, signal, inverse_variance)
     raw_ew, ew_err = measure_ew(
-        feature.wave, feature.flux, feature.continuum, feature.error
+        feature.wave,
+        feature.flux,
+        feature.continuum,
+        feature.error,
+        feature.continuum_error,
     )
     # measure_ew is positive for absorption; flip it so emission is positive too
     ew = -sign * raw_ew
