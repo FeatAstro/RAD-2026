@@ -14,9 +14,9 @@ later.
 ## Pipeline
 1. **Read** a real spectrum (MAST / SDSS) -- done (`mast_archive`, `spectrum_reader`)
 2. **Fit and remove the continuum** -- done (`continuum`)
-3. **Detect** the significant dips -> table of features -- to do (`detect.find_features`)
-4. **Identify** them with a "comb" per species -- to do (`line_list`, `detect.identify`)
-5. **Measure** their equivalent widths -- done (`equivalent_width`), continuum error still to add
+3. **Detect** the significant dips -> table of features -- done (`detect.find_features`)
+4. **Identify** them with a "comb" per species -- done on synthetic spectra (`line_list`, `detect.identify`)
+5. **Measure** their equivalent widths -- done (`equivalent_width`, noise and continuum errors)
 6. **Curve of growth**: N and b per species -- done (`curve_of_growth`)
 
 ### How identification works (the comb)
@@ -252,3 +252,14 @@ Details and interface in `Work_split.pdf`.
   changed nothing on the star); `curve_of_growth` split into small
   functions with full names. The two continuum notebooks are merged
   into `05_continuum.ipynb`.
+- Nov 18 (Gael): scope moved to the quasar 3C 273 (HST/COS G130M). Line
+  lists from NIST only, saved in `data/line_lists/`. Continuum error
+  propagated into the EWs. `detect.identify`: one comb per species,
+  candidate velocities from each feature and each line, at least 3
+  matched lines with consistent EW ratios and no strong line missing;
+  every species is then labelled at the system velocity.
+  `tests/test_identify.py` (features tables) and
+  `notebooks/07_identification.ipynb` (synthetic COS spectra with a Milky
+  Way absorber, a high-velocity cloud and 30 unrelated lines): over 30
+  spectra, every system found within 1 km/s (+0.2 +- 0.7 km/s), no false
+  system, 776 correct labels, 7 wrong, 4 missed lines.
