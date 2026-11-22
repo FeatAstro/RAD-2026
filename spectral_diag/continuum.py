@@ -26,6 +26,9 @@ SPLINE_DEGREE = 3
 # Fewest used pixels allowed between two knots: the 4 coefficients of
 # the cubic in that interval must be well constrained
 MIN_PIXELS_PER_INTERVAL = 10
+# The knot spacing is a choice, not a measurement: refitting with spacings
+# this fraction smaller and larger shows how much the continuum depends on it
+KNOT_SPACING_VARIATION = 0.2
 
 
 @dataclass(frozen=True)
@@ -104,6 +107,34 @@ def fit_continuum(spectrum, settings=ContinuumSettings()):
     continuum[inside] = spline(spectrum.wave[inside])
     error[inside] = _continuum_error(spline, spectrum, used, spectrum.wave[inside])
     return ContinuumFit(continuum, error, used, n_iter, status)
+
+
+def continuum_systematic_error(spectrum, settings=ContinuumSettings()):
+    """Systematic error of the continuum from the choice of knot spacing.
+
+    The continuum is refitted with the knot spacing KNOT_SPACING_VARIATION
+    smaller and larger; at each pixel the error is the largest difference
+    from the fit at the chosen spacing. It adds to `ContinuumFit.error`
+    in quadrature.
+
+    Parameters
+    ----------
+    spectrum : Spectrum
+    settings : ContinuumSettings
+        The settings of the chosen fit.
+
+    Returns
+    -------
+    error : array
+        Units of the flux. NaN where one of the fits is undefined.
+    """
+    chosen_continuum = fit_continuum(spectrum, settings).continuum
+    error = np.zeros(len(spectrum.wave))
+    for factor in (1 - KNOT_SPACING_VARIATION, 1 + KNOT_SPACING_VARIATION):
+        varied_settings = replace(settings, knot_spacing=settings.knot_spacing * factor)
+        varied_continuum = fit_continuum(spectrum, varied_settings).continuum
+        error = np.maximum(error, np.abs(varied_continuum - chosen_continuum))
+    return error
 
 
 def normalise(spectrum, continuum):
