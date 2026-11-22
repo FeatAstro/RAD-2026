@@ -3,9 +3,12 @@
 The continuum is a cubic spline fitted by least squares to the pixels
 that are not in a line. Lines are found by sigma clipping: pixels more
 than `clip_low` errors below the fit are rejected, the spline is
-refitted, and so on until the set of used pixels stops changing. Only
-pixels below the fit are rejected, because absorption only removes
-flux.
+refitted, and so on until the set of used pixels stops changing. By
+default only pixels below the fit are rejected, because absorption only
+removes flux.
+Pixels more than `clip_high` errors above the fit can be
+rejected too, for emission that is not part of the continuum (e.g.
+geocoronal Ly-alpha in HST/COS spectra).
 """
 
 # TODO: for Doppler-broadened lines (quasar absorbers, 21 cm), give
@@ -37,12 +40,17 @@ class ContinuumSettings:
         shape of the continuum.
     clip_low : float
         Pixels more than clip_low errors below the fit are rejected.
+    clip_high : float
+        Pixels more than clip_high errors above the fit are rejected.
+        Infinite by default: for a pure absorption spectrum, rejecting
+        upward noise would bias the continuum low.
     max_iter : int
         Maximum number of fit-and-clip iterations.
     """
 
     knot_spacing: float = 250.0
     clip_low: float = 2.0
+    clip_high: float = np.inf
     max_iter: int = 20
 
 
@@ -127,7 +135,7 @@ def normalise(spectrum, continuum):
 
 
 def _clip_until_stable(spectrum, settings):
-    """Fit, reject the pixels far below the fit, and repeat until stable.
+    """Fit, reject the pixels far below (or above) the fit, and repeat until stable.
 
     Every pixel is tested against each new fit, so pixels rejected
     earlier can come back: the first fits run through the lines, below
@@ -152,7 +160,9 @@ def _clip_until_stable(spectrum, settings):
         # Evaluated at every pixel, also beyond the used ones, so that
         # pixels rejected at the ends can come back
         deviation = (spectrum.flux - spline(spectrum.wave)) / spectrum.error
-        new_used = deviation >= -settings.clip_low
+        new_used = (deviation >= -settings.clip_low) & (
+            deviation <= settings.clip_high
+        )
         if np.array_equal(new_used, used):
             return used, n_iter, "converged"
         used = new_used
