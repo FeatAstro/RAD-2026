@@ -4,11 +4,14 @@ Planned contents:
 - plot_spectrum: flux/error/continuum with identified line windows
   marked
 - plot_fit: data vs. model profile for a fitted Absorber
-- plot_cog: measured EWs over a theoretical curve of growth
+- plot_curve_of_growth: measured EWs over a theoretical curve of growth
 """
 
 import astropy.units as u
 import matplotlib.pyplot as plt
+import numpy as np
+
+from .curve_of_growth import theoretical_ew
 
 
 # --- Font -----------------------------------------------------------------------------
@@ -217,3 +220,97 @@ def plot_features(spectrum, features):
     # Outside the axes: the features fill the plot, so no corner is free
     ax.legend(loc="center left", bbox_to_anchor=LEGEND_OUTSIDE_RIGHT)
     return fig, ax
+
+
+# --- Curve of growth ------------------------------------------------------------------
+
+COG_FIGSIZE = (7, 5)
+# Range of log10 N (cm^-2) around the fit drawn by the theoretical curve
+COG_LOGN_HALF_RANGE = 3.0
+COG_CURVE_POINTS = 61
+
+
+def plot_curve_of_growth(lines, ews, cog_fit):
+    """Plot measured EWs of one species on its fitted curve of growth.
+
+    Each line sits at log10(N f lambda) for the fitted N, so all lines fall
+    on the single curve of the fitted b when the fit is good.
+
+    Parameters
+    ----------
+    lines : list of Line
+        Lines of the species; only those with an entry in `ews` are drawn.
+    ews : dict
+        {line name: (W, W_err)}, Angstrom, e.g. from
+        ``curve_of_growth.measured_ews``.
+    cog_fit : dict
+        Output of ``curve_of_growth.fit_cog`` (uses logN, b and z).
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure holding the plot.
+    ax : matplotlib.axes.Axes
+        Axes of the plot.
+    """
+    measured_lines = [line for line in lines if line.name in ews]
+    fig, ax = plt.subplots(figsize=COG_FIGSIZE)
+    _plot_theoretical_curve(ax, measured_lines[0], cog_fit)
+    for line in measured_lines:
+        _plot_measured_point(ax, line, ews[line.name], cog_fit)
+    ax.set_xlabel(r"$\log_{10}(N f \lambda)$ [cm$^{-2}$ $\mathrm{\AA}$]")
+    ax.set_ylabel(r"$\log_{10}(W / \lambda)$")
+    ax.set_title(
+        f"{measured_lines[0].species}: "
+        f"log N = {cog_fit['logN']:.2f}, b = {cog_fit['b']:.1f} km/s"
+    )
+    ax.legend()
+    return fig, ax
+
+
+def _plot_theoretical_curve(ax, line, cog_fit):
+    """Draw the curve of growth of `line` at the fitted b.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+    line : Line
+    cog_fit : dict
+        Output of ``curve_of_growth.fit_cog``.
+    """
+    logN_values = np.linspace(
+        cog_fit["logN"] - COG_LOGN_HALF_RANGE,
+        cog_fit["logN"] + COG_LOGN_HALF_RANGE,
+        COG_CURVE_POINTS,
+    )
+    widths = theoretical_ew(line, logN_values, cog_fit["b"], cog_fit["z"])
+    ax.plot(
+        logN_values + np.log10(line.f * line.wave_rest),
+        np.log10(widths / line.wave_rest),
+        color="k",
+        label=f"Theory, b = {cog_fit['b']:.1f} km/s",
+    )
+
+
+def _plot_measured_point(ax, line, measurement, cog_fit):
+    """Draw one measured EW at log10(N f lambda) for the fitted N.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+    line : Line
+    measurement : (float, float)
+        W and W_err, Angstrom.
+    cog_fit : dict
+        Output of ``curve_of_growth.fit_cog``.
+    """
+    width, width_error = measurement
+    # Error of log10(W): dW / (W ln 10)
+    log_error = width_error / (width * np.log(10))
+    ax.errorbar(
+        cog_fit["logN"] + np.log10(line.f * line.wave_rest),
+        np.log10(width / line.wave_rest),
+        yerr=log_error,
+        fmt="o",
+        label=line.name,
+    )

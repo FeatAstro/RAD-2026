@@ -37,9 +37,10 @@ needed (teacher). Oral on **9 December**.
          flagged, not separated;
    - [ ] validation: pytest on synthetic spectra (known v, extra spurious features),
          notebook on 3C 273.
-4. [ ] **EWs and curve of growth**: S II 1250/1253/1259 (linear part) + Si II
-       1190/1193/1260/1304 (saturated) → `fit_cog` → log N, b; compare with published
-       values for this sightline. HSLA co-add (~1.8× the S/N of `lbgl31020`).
+4. [x] **EWs and curve of growth** (quasar tutorial, section 5): S II log N = 15.33
+       ± 0.04, b = 21.8 km/s; Si II 15.08 ± 0.06, b = 31.4 km/s (χ² 31 / 2 dof).
+       Sembach et al. 2001 (astro-ph/0108047, Table 5): 15.46 and 15.10. S II is at
+       the knee of the COG, not linear. Check Table 5 values in the PDF for slides.
 5. [ ] **Uncertainties**: χ² map in (log N, b) (`uncertainty.py`); Si II is saturated, so
        the curvature error alone is misleading.
 6. [ ] **Plots and slides** from about 1 December: spectrum with labelled lines,
@@ -50,7 +51,8 @@ needed (teacher). Oral on **9 December**.
 - [ ] Star: v sin i from the width of Mg II 4481 (measurable only if ≳ 100 km/s at
       SDSS resolution, else an upper limit).
 - [ ] Comb on a synthetic spectrum at unknown z (larger z range).
-- [ ] Continuum systematic: refit with knot spacings ±20 % (on the star, the spread
+- [x] Continuum systematic: refit with knot spacings ±20 % (`continuum_systematic_error`;
+      on 3C 273 ~1.4× the statistical error; on the star, the spread
       between spacings was 2–4× the statistical continuum error).
 
 ## Done (star, up to 18 November)
