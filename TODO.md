@@ -1,6 +1,6 @@
 # To do — Gaël
 
-Last updated 18 November 2026.
+Last updated 22 November 2026.
 
 Scope since 18 November: the quasar 3C 273 (HST/COS G130M) is the main target:
 identify, comb, EWs and curve of growth. The A0 star stays as done up to detection;
@@ -12,41 +12,40 @@ needed (teacher). Oral on **9 December**.
 - [x] PR #10 (`gael`: NIST line lists, continuum error in EWs) merged into `main`.
 - [x] Pablo's PR #11 (`spectrum_reader` with `read_cos_x1dsum`, quasar tutorial) merged;
       `main` pulled into `gael` (18 Nov).
-- [ ] Push the updated `gael` (`git push origin gael`).
-- [ ] With Pablo's agreement: update CLAUDE.md (scope), `Work_split.tex` (timeline still
-      says "curve of growth for CaII / Balmer") to the quasar focus.
-- [ ] README line 217 still says `sdss_reader.read_sdss_spec` (now `spectrum_reader`).
+- [x] Pablo's 3 commits (`clip_high`, `read_hsla`, quasar continuum and detection) merged
+      into `gael` (22 Nov); they go to `main` with the next `gael` PR.
+- [x] CLAUDE.md, `Work_split.tex`, README updated to the quasar focus (22 Nov).
+- [ ] Push `gael` and open the PR into `main`; then pull `main` into both branches.
 
 ## Quasar 3C 273 (18 November – 8 December)
 
-1. [ ] **Continuum** (Pablo): the 250 Å spline cannot follow the Milky Way Lyα trough
-       (~1216 Å) nor the quasar Lyα emission (~1408 Å). With 5–10 Å knots the fit does
-       not converge and `find_features` returns ~160–200 features at 5σ, many spurious.
-       Fit locally (±10–20 Å around each line) or close knots + masked regions.
-2. [ ] **Detection** (Pablo): `find_features` on 3C 273 (`meta["fwhm_kms"]` ≈ 16 km/s
-       is set by the reader); check by eye that S II, Si II, N I, Si IV are separate.
-3. [ ] **`detect/identify.py`: comb identification** (Gaël):
-   - [ ] comb per species from `get_lines` (strong lines, inside the data coverage);
-   - [ ] anchor velocities (each feature × each tooth), score = matched teeth weighted
-         by expected strength, minus strong teeth missing; strength-ratio check;
-   - [ ] best system velocity → refine (weighted mean of matched teeth) → apply it to
-         every species, single-line ones included (C II 1334, Si III 1206, Lyα);
-   - [ ] remove matched features, repeat for the next system (Virgo Lyα at
-         cz ≈ 1000–1600 km/s);
-   - [ ] adds `species`, `line`, `wave_rest`, `v`; known blends (Si II / Fe II 1260)
-         flagged, not separated;
-   - [ ] validation: pytest on synthetic spectra (known v, extra spurious features),
-         notebook on 3C 273.
+1. [x] **Continuum** (Pablo): geocoronal Lyα cut (1214–1217 Å), spline with 2 Å knots;
+       systematic error from knot spacings ±20 % (`continuum_systematic_error`, Gaël,
+       ~1.4× the statistical error).
+2. [x] **Detection** (Pablo): HSLA COS co-add, threshold 12σ set from an emission
+       (noise-only) search; 44 features.
+3. [x] **`detect/identify.py`: comb identification** (Gaël): validated on 30 synthetic
+       COS spectra (`07_identification.ipynb`); on 3C 273 one system, the Milky Way at
+       −12.7 km/s, 19 of 44 features labelled (quasar tutorial, section 4).
+       Not done: Virgo Lyα and the forest (one H I line in range, no comb possible);
+       blends not flagged (Si II / Fe II 1260, Si IV 1393.8).
 4. [x] **EWs and curve of growth** (quasar tutorial, section 5): S II log N = 15.33
        ± 0.04, b = 21.8 km/s; Si II 15.08 ± 0.06, b = 31.4 km/s (χ² 31 / 2 dof).
        Sembach et al. 2001 (astro-ph/0108047, Table 5): 15.46 and 15.10. S II is at
-       the knee of the COG, not linear. Check Table 5 values in the PDF for slides.
+       the knee of the COG, not linear. Si II is not robust: with 3 lines (no 1190) the
+       fit gives 16.14, b = 20.7 km/s.
+       - [ ] Check the Table 5 values (Si II, b) in the PDF before the slides.
+       - [ ] Convert our heliocentric velocities to the LSR before comparing velocities.
 5. [ ] **Uncertainties**: χ² map in (log N, b) (`uncertainty.py`); Si II is saturated, so
        the curvature error alone is misleading.
 6. [ ] **Plots and slides** from about 1 December: spectrum with labelled lines,
        curve of growth with measured points and fit; rehearsal.
 
 ## If time
+
+- [ ] C I 1277.3 and 1328.9 sit ~+20 km/s from the system (a second cloud group?); the
+      C I 1276.5 label is doubtful (C I 1277.2, 25× stronger, not matched).
+- [ ] Mark leftover features between 1216 and 1408 Å as probable Lyα.
 
 - [ ] Star: v sin i from the width of Mg II 4481 (measurable only if ≳ 100 km/s at
       SDSS resolution, else an upper limit).
@@ -64,7 +63,6 @@ needed (teacher). Oral on **9 December**.
 
 ## To discuss with Pablo
 
-- [ ] The quasar continuum (step 1 above): who, and local windows or global spline?
 - [ ] The SDSS error bars look about 20% too large (continuum χ²_ν = 0.60): rescale?
       (Less important now that the star is not the main target.)
 - [ ] Split features (`split_blends`): agree on the `blended` column, so `identify`

@@ -1,52 +1,52 @@
 \documentclass[10pt,a4paper]{article}
-\usepackage[margin=1.8cm]{geometry}
+\usepackage[margin=1.5cm,top=1.0cm,bottom=1.0cm]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{enumitem,booktabs,array,xcolor}
 \setlist{nosep,leftmargin=1.2em}
 \pagestyle{empty}
-\setlength{\parindent}{0pt}\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}\setlength{\parskip}{2pt}
 \begin{document}
 {\Large\bfseries Spectral line diagnostics -- work split}\hfill{\small M2 IRT, MC ``Radiation'' 2026--27}
 
 \textbf{Goal.} Tool that starts from a real spectrum, (1) fits and removes the continuum, (2) detects and identifies the lines, (3) measures them and derives the physical properties of the absorbing gas. \textbf{Check-ins:} Oct 14, Nov 18. \textbf{Oral:} Dec 9 (50\% of grade, may be individual).
 
-\textbf{Scope (after check-in 1, Oct 14).} \emph{Absorption lines}, first in the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (3810--9210\,\AA, $R\approx2000$, S/N $\approx60$). Detection keeps a sign option so emission spectra (planetary nebulae, suggested by the teachers) can be added later.
+\textbf{Scope.} \emph{Absorption lines.} After check-in 1 (Oct 14): first the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (3810--9210\,\AA, $R\approx2000$, S/N $\approx60$), done up to detection. Since Nov 18: the quasar \textbf{3C\,273}, HST/COS G130M HSLA co-add (1134--1470\,\AA, $R\approx18\,000$, S/N $\approx39$), Milky Way absorbers; a slab curve of growth applies to them, not to stellar lines. Detection keeps a sign option so emission spectra can be added later.
 
 \textbf{Pipeline and status.}\par
 \begin{tabular}{@{}p{5.2cm}p{7.3cm}p{4cm}@{}}
 \toprule
 Step & Module & Status \\
 \midrule
-1. Read the spectrum & \texttt{mast\_archive}, \texttt{sdss\_reader} & done (Pablo) \\
-2. Fit and remove the continuum & \texttt{continuum.fit\_continuum}, \texttt{normalise} & done (Gaël) \\
-3. Detect the significant dips & \texttt{detect.find\_features} & done (Pablo); tellurics to flag \\
-4. Identify them (comb per species) & \texttt{line\_list}, \texttt{detect.identify} & \textbf{to do -- Gaël} \\
-5. Equivalent widths & \texttt{equivalent\_width.measure\_ew} & done; continuum error to add \\
-6. Curve of growth: $N$, $b$ per species & \texttt{curve\_of\_growth.fit\_cog} & done (on synthetic data) \\
+1. Read the spectrum & \texttt{mast\_archive}, \texttt{spectrum\_reader} (SDSS, COS, HSLA) & done (Pablo) \\
+2. Fit and remove the continuum & \texttt{continuum.fit\_continuum}, \texttt{normalise}, \texttt{continuum\_systematic\_error} & done (Gaël, Pablo) \\
+3. Detect the significant dips & \texttt{detect.find\_features} & done (Pablo) \\
+4. Identify them (comb per species) & \texttt{line\_list}, \texttt{detect.identify} & done (Gaël) \\
+5. Equivalent widths & \texttt{equivalent\_width.measure\_ew} & done, noise + continuum errors \\
+6. Curve of growth: $N$, $b$ per species & \texttt{curve\_of\_growth.fit\_cog} & done on 3C\,273 (S\,II, Si\,II) \\
+7. Uncertainties & \texttt{uncertainty} ($\chi^2$ map) & to do \\
 \bottomrule
 \end{tabular}
 
-\textbf{Identification by a comb.} A shift multiplies all wavelengths by the same factor, $\lambda_{\rm obs}=\lambda_{\rm rest}(1+z)$, so the \emph{ratios} of the wavelengths of one species are fixed. Each species is a comb of rest wavelengths; we slide it over the detected features (trial velocity $v$, $-600$ to $+600$\,km/s for a star) and count the teeth that hit a feature. Hydrogen's comb comes from the Rydberg formula, $1/\lambda = R_H(1/n_{\rm low}^2-1/n_{\rm up}^2)$; other species from a table (NIST). Strength ratios reject chance matches: a strong line predicted but missing excludes the species; doublets (CaII H\&K, NaD) must have EW ratios between 2:1 (weak) and 1:1 (saturated). Telluric O$_2$/H$_2$O bands are one more ``species''.
+\textbf{Identification by a comb.} A shift multiplies all wavelengths by the same factor, $\lambda_{\rm obs}=\lambda_{\rm rest}(1+z)$, so the \emph{ratios} of the wavelengths of one species are fixed. Each species is a comb of rest wavelengths (NIST); each detected feature is tried as each tooth, which gives a candidate velocity ($-600$ to $+600$\,km/s). A comb defines a system if at least 3 teeth land on features within 15\,km/s, with EW ratios between the $f\lambda$ ratio (weak lines) and 1 (saturated), and no stronger tooth missing. Every species is then labelled at the system velocity (10\,km/s), single-line species included. On 3C\,273: one system, the Milky Way at $-12.7$\,km/s, 19 of 44 features labelled.
 
 \begin{tabular}{@{}p{8.2cm}@{\hspace{0.4cm}}p{8.2cm}@{}}
 \toprule
 \textbf{Pablo -- data $\to$ features} & \textbf{Gaël -- features $\to$ physics}\\
 \midrule
 \begin{itemize}
-\item \emph{Done:} \texttt{detect.find\_features}: matched Gaussian filter of one resolution element, threshold 4$\sigma$
-\item \emph{Done:} windows grown to the line wings and split between resolved blended lines; centre (Gaussian fit) and its error, depth, EW
-\item \emph{Done:} tests on synthetic spectra with known lines (pytest); notebook \texttt{06\_feature\_detection} on the A0 star
-\item \emph{To do:} flag telluric bands (O$_2$, H$_2$O); \texttt{blended} column; cut windows at data gaps; continuum error in the significance
-\item \emph{To do:} plot of the detected features in \texttt{plots}
+\item \emph{Done:} \texttt{detect.find\_features}: matched Gaussian filter of one resolution element; windows grown to the line wings and split between resolved lines; centre, depth, EW
+\item \emph{Done:} tests on synthetic spectra (pytest); notebook \texttt{06\_feature\_detection} on the A0 star; \texttt{plot\_features}
+\item \emph{Done:} COS and HSLA readers; quasar tutorial: geocoronal Ly$\alpha$ cut, 2\,\AA{} knots, threshold 12$\sigma$ from a noise-only emission search
+\item \emph{To do:} \texttt{blended} column; plots for the slides
 \end{itemize}
 &
 \begin{itemize}
-\item \texttt{line\_list}: hydrogen comb from the Rydberg formula (\texttt{scipy.constants}); table of common species (CaII, MgII, NaI, OI, HeI, FeII) with $\lambda_{\rm vac}$, $f$, lower-level energy
-\item \texttt{detect.identify}: comb scan, scoring weighted by expected strength, strength-ratio checks
-\item Continuum error in \texttt{measure\_ew}
-\item Curve of growth on the identified lines
-\item Tests: a hand-written features table of the star
+\item \emph{Done:} \texttt{line\_list}: NIST tables saved offline (19 species); hydrogen checked against the Rydberg formula
+\item \emph{Done:} \texttt{detect.identify}; tests on feature tables and on 30 synthetic COS spectra (\texttt{07\_identification})
+\item \emph{Done:} continuum error (statistical + systematic) in the EWs
+\item \emph{Done:} curve of growth on 3C\,273: S\,II $\log N = 15.33$, Si\,II $15.08$ (\texttt{measured\_ews}, \texttt{plot\_curve\_of\_growth})
+\item \emph{To do:} $\chi^2$ map in $(\log N, b)$; check against Sembach et al.\ (2001)
 \end{itemize}\\
 \bottomrule
 \end{tabular}
@@ -57,11 +57,12 @@ Step & Module & Status \\
 \begin{tabular}{@{}p{2.5cm}p{14.2cm}@{}}
 \toprule
 Until Oct 14 & Repo, data classes, synthetic generator; profiles, EW, curve of growth validated on synthetic spectra.\\
-Oct 14 -- Nov 18 & Real star: reading, continuum and detection (done); line list from NIST (\texttt{line\_list.query\_nist}, done); comb identification (Gaël, in progress).\\
-Nov 18 -- Dec 8 & Comb identification; EWs with continuum error; curve of growth for CaII / Balmer; demo of the full chain. Comb on a synthetic spectrum at unknown $z$; uncertainties; interactive viz; optional emission-line extension (planetary nebula); slides and rehearsal.\\
+Oct 14 -- Nov 18 & Real star: reading, continuum and detection (done); line lists from NIST (done); comb identification (done on synthetic spectra).\\
+Nov 18 -- Nov 22 & Quasar 3C\,273: COS/HSLA readers, continuum, detection (Pablo); identification, continuum systematic error, curves of growth of S\,II and Si\,II (Gaël). Done.\\
+Nov 23 -- Dec 8 & Uncertainties ($\chi^2$ map); comparison with the literature; plots for the slides (labelled spectrum, curves of growth); slides and rehearsal. If time: star rotation, comb at unknown $z$.\\
 Dec 9 & Oral presentation.\\
 \bottomrule
 \end{tabular}
 
-\textbf{Working habits.} Shared git repo, personal branches (\texttt{gael}, \texttt{pablo}) merged into \texttt{main} by reviewed pull requests; synthetic checks in \texttt{tests/} (run \texttt{pytest}), real-data notebooks in \texttt{notebooks/}; spectra in \texttt{data/} are not committed (re-download with \texttt{notebooks/MAST\_query.ipynb}); weekly sync; review each other's code so both understand the full pipeline.
+\textbf{Working habits.} Shared git repo, personal branches (\texttt{gael}, \texttt{pablo}) merged into \texttt{main} by reviewed pull requests; synthetic checks in \texttt{tests/} (run \texttt{pytest}), real-data notebooks in \texttt{notebooks/}; spectra in \texttt{data/} are not committed; weekly sync; review each other's code so both understand the full pipeline.
 \end{document}
