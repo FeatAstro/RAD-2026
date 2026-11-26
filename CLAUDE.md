@@ -15,9 +15,9 @@ Possible developments listed by the teachers: spectra database queries, continuu
 - Oral presentation: **Dec 9** (50% of final grade, may be individualised per student)
 
 ## Scope decision
-Updated after check-in 1 (Oct 14): start from a real spectrum, fit and remove the continuum, then detect, identify and characterise the lines. Absorption lines, first on the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (`data/mast/spec-lite-2182-53905-0101.fits`), done up to detection.
+Updated after check-in 1 (Oct 14): start from a real spectrum, fit and remove the continuum, then detect, identify and characterise the lines. Absorption lines, first on the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (`data/mast/spec-lite-2182-53905-0101.fits`), run to the end on Nov 26 as a counter-example (Balmer lines from an excited level, Stark wings: the slab curve of growth fails).
 
-Since Nov 18 the main target is the quasar **3C 273**, HST/COS G130M HSLA co-add (`data/mast/hst_cos_3c273--0392_g130m-lp01_cspec.fits`), Milky Way absorbers: the stellar lines are not described by a slab curve of growth, quasar absorbers are. Identification by a "comb" per species (fixed wavelength ratios, at least 3 lines) checked by line-strength ratios; curve of growth for S II 1250/1253/1259 and Si II 1190/1193/1260/1304. Unresolved blends are not separated (teacher). Star rotation (v sin i) is an "if time" extra. Keep detection generic (sign option) so emission spectra can be added later. Work split and the detect/identify interface: `Work_split.tex` and `spectral_diag/detect/__init__.py`; status in `TODO.md` and the quasar tutorial `notebooks/full_quasar_tutorial.ipynb`.
+Since Nov 18 the main target is the quasar **3C 273**, HST/COS G130M HSLA co-add (`data/mast/hst_cos_3c273--0392_g130m-lp01_cspec.fits`), Milky Way absorbers: the stellar lines are not described by a slab curve of growth, quasar absorbers are. Identification by a "comb" per species (fixed wavelength ratios, at least 3 lines) checked by line-strength ratios; curve of growth for S II 1250/1253/1259 and Si II 1190/1193/1260/1304, with a chi2 map in (log N, b) for the uncertainties. Keep to the simplest cases (teacher): lines from the ground level, whose N is the column density of the ion. Unresolved blends are not separated (teacher). Star rotation (v sin i) is an "if time" extra. Keep detection generic (sign option) so emission spectra can be added later. Work split and the detect/identify interface: `Work_split.tex` and `spectral_diag/detect/__init__.py`; status in `TODO.md` and the quasar tutorial `notebooks/full_quasar_tutorial.ipynb`.
 
 ## Stack and layout
 Python (numpy, scipy, astropy, astroquery, matplotlib; optional lmfit/emcee). Virtualenv in `.venv/` (ignored by git). Package in `spectral_diag/`, notebooks in `notebooks/`, data in `data/` (small files only).
@@ -31,7 +31,7 @@ Planned modules in `spectral_diag/`:
 - `equivalent_width` – equivalent widths with error propagation
 - `line_profiles` – Voigt profile (`scipy.special.wofz`), optical depth τ(λ; N, b, z), LSF
 - `curve_of_growth` – theoretical COG and multi-line fit for N and b
-- `uncertainty` – χ² grid / MCMC / bootstrap
+- `uncertainty` – χ² map in (log N, b), profile intervals, rescaled by χ²_min/dof
 - `plots` – interactive spectrum and fit visualisation
 
 Shared data structures (`Spectrum`, `Line`, `Absorber`) are agreed on early so the two students can work in parallel.

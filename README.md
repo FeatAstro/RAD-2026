@@ -5,10 +5,12 @@ Group project for the M2 IRT course "Radiation" (MC, 2026-2027).
 A numerical tool that starts from a real spectrum, fits and removes the
 continuum, finds the lines, identifies them and characterises them. We
 work on **absorption lines** (decided after check-in 1, Oct 14): first
-in the spectrum of an A0 star (done up to detection), then, since
-Nov 18, in the HST/COS spectrum of the quasar **3C 273**, whose Milky Way
-absorption lines give the column density N and Doppler parameter b of
-the species with several lines through the curve of growth. The
+in the spectrum of an A0 star, then, since Nov 18, in the HST/COS
+spectrum of the quasar **3C 273**, whose Milky Way absorption lines give
+the column density N and Doppler parameter b of the species with several
+lines through the curve of growth. The star is run through the whole
+chain too, as a counter-example: a photosphere is not a slab of gas, so
+its curve of growth fails. The
 detection code takes a sign option so that emission spectra can be
 handled later.
 
@@ -20,7 +22,7 @@ handled later.
 5. **Measure** their equivalent widths -- done (`equivalent_width`, noise and continuum errors,
    statistical and systematic)
 6. **Curve of growth**: N and b per species -- done (`curve_of_growth`), on 3C 273 for S II and Si II
-7. **Uncertainties**: chi2 map in (log N, b) -- to do (`uncertainty`)
+7. **Uncertainties**: chi2 map in (log N, b) -- done (`uncertainty`), rescaled by chi2_min/dof
 
 ### How identification works (the comb)
 A Doppler shift or a redshift multiplies every wavelength by the same
@@ -39,7 +41,9 @@ The best comb sets the system velocity; every species is then labelled
 at that velocity (within 10 km/s), single-line species included (C II
 1334, Si III 1206, O I 1302). The matched features are removed and the
 search repeats. A species with a single line in the range (H I in the
-COS far UV) cannot define a system on its own.
+COS far UV) cannot define a system on its own. By default the teeth are
+ground-level lines (cold gas); `CombSettings.e_low_max` allows excited
+levels, e.g. the Balmer lines of a star.
 
 ## Data
 - **Main spectrum since Nov 18**: the quasar 3C 273, HST/COS G130M
@@ -75,8 +79,8 @@ Implemented: `data_classes` (shared `Spectrum`/`Line`/`Absorber`),
 `line_profiles` (Gaussian and Voigt optical depth), `equivalent_width`,
 `synthetic_spectrum`, `mast_archive`, `spectrum_reader` (SDSS, COS x1dsum,
 HSLA co-adds), `continuum`, `detect` (`find_features`, `identify`),
-`line_list` (19 species from NIST), `curve_of_growth` and `plots`. Still a
-stub: `uncertainty`. The two tutorials, `full_star_tutorial.ipynb` and
+`line_list` (19 species from NIST), `curve_of_growth`, `uncertainty`
+(chi2 map) and `plots`. The two tutorials, `full_star_tutorial.ipynb` and
 `full_quasar_tutorial.ipynb`, run the whole chain on real data.
 
 ## Installation
@@ -101,6 +105,7 @@ To be written once the first end-to-end pipeline runs.
 | Oct 14 | Check-in 1: absorption chain validated on synthetic spectra (profiles, EW, COG). Feedback: start from a real spectrum, continuum first, then find and identify the lines |
 | Nov 18 | Check-in 2: star done up to detection; scope moved to the quasar 3C 273 |
 | Nov 22 | 3C 273: continuum, detection, comb identification, curves of growth of S II and Si II |
+| Nov 26 | Star run to the end (counter-example); chi2 map of the curves of growth |
 | Dec 9 | Oral presentation (50% of the course grade) |
 
 ## Team
@@ -289,3 +294,17 @@ Details and interface in `Work_split.pdf`.
   km/s; Si II 15.08 +- 0.06, b = 31.4 km/s, against 15.46 and 15.10 in
   Sembach et al. 2001 (astro-ph/0108047). Si II is saturated and not
   robust (16.14 with 3 lines instead of 4).
+- Nov 26 (Gael): star tutorial run to the end. `CombSettings.e_low_max`
+  (default 0, ground level only) lets the Balmer lines form a comb; the
+  strength check rejects them (H-alpha has the largest f*lambda but the
+  smallest W/lambda), so it is turned off for the star. One system at
+  -31 km/s (SDSS: -37); the Balmer curve of growth gives chi2 = 2378 for
+  5 dof and b = 103 km/s against 12.6 km/s thermal: Stark wings and a
+  photosphere, not a slab, so N and b have no physical meaning there.
+- Nov 26 (Gael): `uncertainty.chi2_map` (chi2 on a 241 x 150 grid of
+  (log N, b)), `profile` and `profile_interval` (68 and 95 % intervals
+  from the profile, Delta chi2 = 1 and 3.84), rescaled by chi2_min/dof;
+  `plots.plot_chi2_map`, `plot_profiles`. Validated in
+  `notebooks/08_chi2_map.ipynb` and `tests/test_uncertainty.py`. On 3C 273:
+  S II log N = 15.33 +0.10/-0.09; Si II has two minima (15.08 and ~16.2),
+  14.8-16.5 at 95 %: its saturated lines do not pin N down.
