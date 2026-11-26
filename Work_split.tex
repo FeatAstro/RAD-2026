@@ -11,7 +11,7 @@
 
 \textbf{Goal.} Tool that starts from a real spectrum, (1) fits and removes the continuum, (2) detects and identifies the lines, (3) measures them and derives the physical properties of the absorbing gas. \textbf{Check-ins:} Oct 14, Nov 18. \textbf{Oral:} Dec 9 (50\% of grade, may be individual).
 
-\textbf{Scope.} \emph{Absorption lines.} After check-in 1 (Oct 14): first the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (3810--9210\,\AA, $R\approx2000$, S/N $\approx60$), done up to detection. Since Nov 18: the quasar \textbf{3C\,273}, HST/COS G130M HSLA co-add (1134--1470\,\AA, $R\approx18\,000$, S/N $\approx39$), Milky Way absorbers; a slab curve of growth applies to them, not to stellar lines. Detection keeps a sign option so emission spectra can be added later.
+\textbf{Scope.} \emph{Absorption lines.} After check-in 1 (Oct 14): first the SDSS spectrum of the A0 star SDSS J172637.24+264127.6 (3810--9210\,\AA, $R\approx2000$, S/N $\approx60$), run to the end (Nov 26) as a counter-example: its Balmer curve of growth fails ($\chi^2=2378$/5 dof). Since Nov 18: the quasar \textbf{3C\,273}, HST/COS G130M HSLA co-add (1134--1470\,\AA, $R\approx18\,000$, S/N $\approx39$), Milky Way absorbers; a slab curve of growth applies to them, not to stellar lines. Detection keeps a sign option so emission spectra can be added later.
 
 \textbf{Pipeline and status.}\par
 \begin{tabular}{@{}p{5.2cm}p{7.3cm}p{4cm}@{}}
@@ -24,7 +24,7 @@ Step & Module & Status \\
 4. Identify them (comb per species) & \texttt{line\_list}, \texttt{detect.identify} & done (Gaël) \\
 5. Equivalent widths & \texttt{equivalent\_width.measure\_ew} & done, noise + continuum errors \\
 6. Curve of growth: $N$, $b$ per species & \texttt{curve\_of\_growth.fit\_cog} & done on 3C\,273 (S\,II, Si\,II) \\
-7. Uncertainties & \texttt{uncertainty} ($\chi^2$ map) & to do \\
+7. Uncertainties & \texttt{uncertainty.chi2\_map}, \texttt{profile\_interval} & done (Gaël) \\
 \bottomrule
 \end{tabular}
 
@@ -42,11 +42,11 @@ Step & Module & Status \\
 \end{itemize}
 &
 \begin{itemize}
-\item \emph{Done:} \texttt{line\_list}: NIST tables saved offline (19 species); hydrogen checked against the Rydberg formula
-\item \emph{Done:} \texttt{detect.identify}; tests on feature tables and on 30 synthetic COS spectra (\texttt{07\_identification})
-\item \emph{Done:} continuum error (statistical + systematic) in the EWs
-\item \emph{Done:} curve of growth on 3C\,273: S\,II $\log N = 15.33$, Si\,II $15.08$ (\texttt{measured\_ews}, \texttt{plot\_curve\_of\_growth})
-\item \emph{To do:} $\chi^2$ map in $(\log N, b)$; check against Sembach et al.\ (2001)
+\item \emph{Done:} \texttt{line\_list} (NIST, 19 species, offline); \texttt{detect.identify}, tested on 30 synthetic COS spectra (\texttt{07\_identification})
+\item \emph{Done:} continuum error in the EWs; curves of growth of S\,II and Si\,II on 3C\,273
+\item \emph{Done:} $\chi^2$ map (\texttt{08\_chi2\_map}): S\,II $15.33^{+0.10}_{-0.09}$; Si\,II 14.8--16.5 at 95\,\% (two minima)
+\item \emph{Done:} star tutorial to the end (\texttt{CombSettings.e\_low\_max})
+\item \emph{To do:} Sembach et al.\ (2001) Table 5; velocities to the LSR
 \end{itemize}\\
 \bottomrule
 \end{tabular}
@@ -59,7 +59,7 @@ Step & Module & Status \\
 Until Oct 14 & Repo, data classes, synthetic generator; profiles, EW, curve of growth validated on synthetic spectra.\\
 Oct 14 -- Nov 18 & Real star: reading, continuum and detection (done); line lists from NIST (done); comb identification (done on synthetic spectra).\\
 Nov 18 -- Nov 22 & Quasar 3C\,273: COS/HSLA readers, continuum, detection (Pablo); identification, continuum systematic error, curves of growth of S\,II and Si\,II (Gaël). Done.\\
-Nov 23 -- Dec 8 & Uncertainties ($\chi^2$ map); comparison with the literature; plots for the slides (labelled spectrum, curves of growth); slides and rehearsal. If time: star rotation, comb at unknown $z$.\\
+Nov 23 -- Dec 8 & $\chi^2$ map, star counter-example (done Nov 26); literature check; plots and slides; rehearsal. If time: H\,I from the damped Ly$\alpha$.\\
 Dec 9 & Oral presentation.\\
 \bottomrule
 \end{tabular}

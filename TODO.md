@@ -1,6 +1,6 @@
 # To do — Gaël
 
-Last updated 22 November 2026.
+Last updated 26 November 2026.
 
 Scope since 18 November: the quasar 3C 273 (HST/COS G130M) is the main target:
 identify, comb, EWs and curve of growth. The A0 star stays as done up to detection;
@@ -36,8 +36,9 @@ needed (teacher). Oral on **9 December**.
        fit gives 16.14, b = 20.7 km/s.
        - [ ] Check the Table 5 values (Si II, b) in the PDF before the slides.
        - [ ] Convert our heliocentric velocities to the LSR before comparing velocities.
-5. [ ] **Uncertainties**: χ² map in (log N, b) (`uncertainty.py`); Si II is saturated, so
-       the curvature error alone is misleading.
+5. [x] **Uncertainties** (26 Nov): χ² map in (log N, b) (`uncertainty.py`, validated in
+       `08_chi2_map.ipynb`), rescaled by χ²_min/dof (5.0 and 15.7). S II log N = 15.33
+       +0.10/−0.09; Si II has two minima (15.08 and ≈ 16.2), 14.8–16.5 at 95 %.
 6. [ ] **Plots and slides** from about 1 December: spectrum with labelled lines,
        curve of growth with measured points and fit; rehearsal.
 

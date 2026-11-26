@@ -5,6 +5,8 @@ Planned contents:
   marked
 - plot_fit: data vs. model profile for a fitted Absorber
 - plot_curve_of_growth: measured EWs over a theoretical curve of growth
+- plot_chi2_map: confidence regions of a curve-of-growth fit in (logN, b)
+- plot_profiles: delta chi2 of logN and of b, each with the other minimised
 """
 
 import astropy.units as u
@@ -12,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .curve_of_growth import theoretical_ew
+from .uncertainty import JOINT_LEVELS, ONE_PARAMETER_68, ONE_PARAMETER_95, profile
 
 
 # --- Font -----------------------------------------------------------------------------
@@ -314,3 +317,99 @@ def _plot_measured_point(ax, line, measurement, cog_fit):
         fmt="o",
         label=line.name,
     )
+
+
+# --- chi2 map -------------------------------------------------------------------------
+
+CHI2_MAP_FIGSIZE = (7, 5)
+JOINT_LEVEL_LABELS = ("68 %", "95 %", "99.7 %")
+JOINT_LEVEL_COLORS = ("tab:blue", "tab:orange", "tab:red")
+
+
+def plot_chi2_map(chi2_map, title=""):
+    """Plot the 68, 95 and 99.7 % joint regions of (logN, b) and the best fit.
+
+    Parameters
+    ----------
+    chi2_map : uncertainty.Chi2Map
+        Its rescaled delta chi2 is drawn.
+    title : str
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure holding the plot.
+    ax : matplotlib.axes.Axes
+        Axes of the plot.
+    """
+    delta = chi2_map.delta_chi2()
+    fig, ax = plt.subplots(figsize=CHI2_MAP_FIGSIZE)
+    ax.contour(
+        chi2_map.logN_values,
+        chi2_map.b_values,
+        delta,
+        levels=JOINT_LEVELS,
+        colors=JOINT_LEVEL_COLORS,
+    )
+    _plot_contour_legend(ax)
+    ax.plot(
+        chi2_map.best_logN,
+        chi2_map.best_b,
+        "k+",
+        markersize=12,
+        label="best fit",
+    )
+    ax.set_yscale("log")
+    ax.set_xlabel(r"$\log_{10} N$ [cm$^{-2}$]")
+    ax.set_ylabel(r"$b$ [km s$^{-1}$]")
+    ax.set_title(title)
+    ax.legend()
+    return fig, ax
+
+
+def _plot_contour_legend(ax):
+    """Add one legend entry per confidence level (contours have none).
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+    """
+    for label, color in zip(JOINT_LEVEL_LABELS, JOINT_LEVEL_COLORS):
+        ax.plot([], [], color=color, label=label)
+
+
+PROFILES_FIGSIZE = (11, 4)
+PROFILE_AXIS_LABELS = {"logN": r"$\log_{10} N$ [cm$^{-2}$]", "b": r"$b$ [km s$^{-1}$]"}
+# Highest delta chi2 shown: a little above the 95 % level
+PROFILE_DELTA_MAX = 6.0
+
+
+def plot_profiles(chi2_map, title=""):
+    """Plot the profiles of delta chi2 for logN and b, with the 68 and 95 % levels.
+
+    Parameters
+    ----------
+    chi2_map : uncertainty.Chi2Map
+    title : str
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure holding the plot.
+    axes : array of matplotlib.axes.Axes
+        logN, then b.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=PROFILES_FIGSIZE)
+    for ax, parameter in zip(axes, ("logN", "b")):
+        values, profile_values = profile(chi2_map, parameter)
+        ax.plot(values, profile_values, color="k")
+        ax.axhline(ONE_PARAMETER_68, color="tab:blue", linestyle="--", label="68 %")
+        ax.axhline(ONE_PARAMETER_95, color="tab:orange", linestyle="--", label="95 %")
+        ax.set_ylim(0, PROFILE_DELTA_MAX)
+        ax.set_xlabel(PROFILE_AXIS_LABELS[parameter])
+        ax.set_ylabel(r"$\Delta\chi^2$")
+    axes[1].set_xscale("log")
+    axes[0].legend()
+    fig.suptitle(title)
+    fig.tight_layout()
+    return fig, axes
