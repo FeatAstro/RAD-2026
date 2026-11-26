@@ -11,6 +11,7 @@ from scipy import constants as scipy_constants
 from spectral_diag.continuum import (
     ContinuumSettings,
     _weighted_spline,
+    continuum_systematic_error,
     fit_continuum,
     normalise,
 )
@@ -250,3 +251,22 @@ def test_normalise_divides_continuum_error():
     spectrum.continuum_error = fit.error
     normalised = normalise(spectrum, fit.continuum)
     np.testing.assert_allclose(normalised.continuum_error, fit.error / fit.continuum)
+
+
+def test_systematic_error_small_without_lines():
+    # A smooth continuum is followed equally well at any knot spacing: the
+    # fits differ only through the noise, by about the statistical error
+    spectrum = _noisy(WAVE, CONTINUUM)
+    fit = fit_continuum(spectrum)
+    systematic = continuum_systematic_error(spectrum)
+    assert np.nanmedian(systematic) < 2 * np.nanmedian(fit.error)
+
+
+def test_systematic_error_largest_under_broad_line():
+    # The wings of a broad line pull the spline down by an amount that
+    # depends on the knot spacing
+    true_continuum = _blackbody_shape(SDSS_WAVE, A_STAR_TEMPERATURE)
+    spectrum = _noisy(SDSS_WAVE, true_continuum, [BROAD_ABSORBER])
+    systematic = continuum_systematic_error(spectrum)
+    line_centre = np.argmin(np.abs(SDSS_WAVE - BROAD_LINE.wave_rest))
+    assert systematic[line_centre] > 2 * np.nanmedian(systematic)

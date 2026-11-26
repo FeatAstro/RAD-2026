@@ -4,11 +4,17 @@ Planned contents:
 - plot_spectrum: flux/error/continuum with identified line windows
   marked
 - plot_fit: data vs. model profile for a fitted Absorber
-- plot_cog: measured EWs over a theoretical curve of growth
+- plot_curve_of_growth: measured EWs over a theoretical curve of growth
+- plot_chi2_map: confidence regions of a curve-of-growth fit in (logN, b)
+- plot_profiles: delta chi2 of logN and of b, each with the other minimised
 """
 
 import astropy.units as u
 import matplotlib.pyplot as plt
+import numpy as np
+
+from .curve_of_growth import theoretical_ew
+from .uncertainty import JOINT_LEVELS, ONE_PARAMETER_68, ONE_PARAMETER_95, profile
 
 
 # --- Font -----------------------------------------------------------------------------
@@ -217,3 +223,193 @@ def plot_features(spectrum, features):
     # Outside the axes: the features fill the plot, so no corner is free
     ax.legend(loc="center left", bbox_to_anchor=LEGEND_OUTSIDE_RIGHT)
     return fig, ax
+
+
+# --- Curve of growth ------------------------------------------------------------------
+
+COG_FIGSIZE = (7, 5)
+# Range of log10 N (cm^-2) around the fit drawn by the theoretical curve
+COG_LOGN_HALF_RANGE = 3.0
+COG_CURVE_POINTS = 61
+
+
+def plot_curve_of_growth(lines, ews, cog_fit):
+    """Plot measured EWs of one species on its fitted curve of growth.
+
+    Each line sits at log10(N f lambda) for the fitted N, so all lines fall
+    on the single curve of the fitted b when the fit is good.
+
+    Parameters
+    ----------
+    lines : list of Line
+        Lines of the species; only those with an entry in `ews` are drawn.
+    ews : dict
+        {line name: (W, W_err)}, Angstrom, e.g. from
+        ``curve_of_growth.measured_ews``.
+    cog_fit : dict
+        Output of ``curve_of_growth.fit_cog`` (uses logN, b and z).
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure holding the plot.
+    ax : matplotlib.axes.Axes
+        Axes of the plot.
+    """
+    measured_lines = [line for line in lines if line.name in ews]
+    fig, ax = plt.subplots(figsize=COG_FIGSIZE)
+    _plot_theoretical_curve(ax, measured_lines[0], cog_fit)
+    for line in measured_lines:
+        _plot_measured_point(ax, line, ews[line.name], cog_fit)
+    ax.set_xlabel(r"$\log_{10}(N f \lambda)$ [cm$^{-2}$ $\mathrm{\AA}$]")
+    ax.set_ylabel(r"$\log_{10}(W / \lambda)$")
+    ax.set_title(
+        f"{measured_lines[0].species}: "
+        f"log N = {cog_fit['logN']:.2f}, b = {cog_fit['b']:.1f} km/s"
+    )
+    ax.legend()
+    return fig, ax
+
+
+def _plot_theoretical_curve(ax, line, cog_fit):
+    """Draw the curve of growth of `line` at the fitted b.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+    line : Line
+    cog_fit : dict
+        Output of ``curve_of_growth.fit_cog``.
+    """
+    logN_values = np.linspace(
+        cog_fit["logN"] - COG_LOGN_HALF_RANGE,
+        cog_fit["logN"] + COG_LOGN_HALF_RANGE,
+        COG_CURVE_POINTS,
+    )
+    widths = theoretical_ew(line, logN_values, cog_fit["b"], cog_fit["z"])
+    ax.plot(
+        logN_values + np.log10(line.f * line.wave_rest),
+        np.log10(widths / line.wave_rest),
+        color="k",
+        label=f"Theory, b = {cog_fit['b']:.1f} km/s",
+    )
+
+
+def _plot_measured_point(ax, line, measurement, cog_fit):
+    """Draw one measured EW at log10(N f lambda) for the fitted N.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+    line : Line
+    measurement : (float, float)
+        W and W_err, Angstrom.
+    cog_fit : dict
+        Output of ``curve_of_growth.fit_cog``.
+    """
+    width, width_error = measurement
+    # Error of log10(W): dW / (W ln 10)
+    log_error = width_error / (width * np.log(10))
+    ax.errorbar(
+        cog_fit["logN"] + np.log10(line.f * line.wave_rest),
+        np.log10(width / line.wave_rest),
+        yerr=log_error,
+        fmt="o",
+        label=line.name,
+    )
+
+
+# --- chi2 map -------------------------------------------------------------------------
+
+CHI2_MAP_FIGSIZE = (7, 5)
+JOINT_LEVEL_LABELS = ("68 %", "95 %", "99.7 %")
+JOINT_LEVEL_COLORS = ("tab:blue", "tab:orange", "tab:red")
+
+
+def plot_chi2_map(chi2_map, title=""):
+    """Plot the 68, 95 and 99.7 % joint regions of (logN, b) and the best fit.
+
+    Parameters
+    ----------
+    chi2_map : uncertainty.Chi2Map
+        Its rescaled delta chi2 is drawn.
+    title : str
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure holding the plot.
+    ax : matplotlib.axes.Axes
+        Axes of the plot.
+    """
+    delta = chi2_map.delta_chi2()
+    fig, ax = plt.subplots(figsize=CHI2_MAP_FIGSIZE)
+    ax.contour(
+        chi2_map.logN_values,
+        chi2_map.b_values,
+        delta,
+        levels=JOINT_LEVELS,
+        colors=JOINT_LEVEL_COLORS,
+    )
+    _plot_contour_legend(ax)
+    ax.plot(
+        chi2_map.best_logN,
+        chi2_map.best_b,
+        "k+",
+        markersize=12,
+        label="best fit",
+    )
+    ax.set_yscale("log")
+    ax.set_xlabel(r"$\log_{10} N$ [cm$^{-2}$]")
+    ax.set_ylabel(r"$b$ [km s$^{-1}$]")
+    ax.set_title(title)
+    ax.legend()
+    return fig, ax
+
+
+def _plot_contour_legend(ax):
+    """Add one legend entry per confidence level (contours have none).
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+    """
+    for label, color in zip(JOINT_LEVEL_LABELS, JOINT_LEVEL_COLORS):
+        ax.plot([], [], color=color, label=label)
+
+
+PROFILES_FIGSIZE = (11, 4)
+PROFILE_AXIS_LABELS = {"logN": r"$\log_{10} N$ [cm$^{-2}$]", "b": r"$b$ [km s$^{-1}$]"}
+# Highest delta chi2 shown: a little above the 95 % level
+PROFILE_DELTA_MAX = 6.0
+
+
+def plot_profiles(chi2_map, title=""):
+    """Plot the profiles of delta chi2 for logN and b, with the 68 and 95 % levels.
+
+    Parameters
+    ----------
+    chi2_map : uncertainty.Chi2Map
+    title : str
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure holding the plot.
+    axes : array of matplotlib.axes.Axes
+        logN, then b.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=PROFILES_FIGSIZE)
+    for ax, parameter in zip(axes, ("logN", "b")):
+        values, profile_values = profile(chi2_map, parameter)
+        ax.plot(values, profile_values, color="k")
+        ax.axhline(ONE_PARAMETER_68, color="tab:blue", linestyle="--", label="68 %")
+        ax.axhline(ONE_PARAMETER_95, color="tab:orange", linestyle="--", label="95 %")
+        ax.set_ylim(0, PROFILE_DELTA_MAX)
+        ax.set_xlabel(PROFILE_AXIS_LABELS[parameter])
+        ax.set_ylabel(r"$\Delta\chi^2$")
+    axes[1].set_xscale("log")
+    axes[0].legend()
+    fig.suptitle(title)
+    fig.tight_layout()
+    return fig, axes

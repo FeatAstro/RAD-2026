@@ -5,41 +5,54 @@ Group project for the M2 IRT course "Radiation" (MC, 2026-2027).
 A numerical tool that starts from a real spectrum, fits and removes the
 continuum, finds the lines, identifies them and characterises them. We
 work on **absorption lines** (decided after check-in 1, Oct 14): first
-in the spectrum of a star, with the curve of growth used to derive the
-column density N and Doppler parameter b of the species with several
-lines. The detection code takes a sign option so that emission spectra
-(e.g. planetary nebulae, suggested by the teachers) can be handled
-later.
+in the spectrum of an A0 star, then, since Nov 18, in the HST/COS
+spectrum of the quasar **3C 273**, whose Milky Way absorption lines give
+the column density N and Doppler parameter b of the species with several
+lines through the curve of growth. The star is run through the whole
+chain too, as a counter-example: a photosphere is not a slab of gas, so
+its curve of growth fails. The
+detection code takes a sign option so that emission spectra can be
+handled later.
 
 ## Pipeline
 1. **Read** a real spectrum (MAST / SDSS) -- done (`mast_archive`, `spectrum_reader`)
 2. **Fit and remove the continuum** -- done (`continuum`)
-3. **Detect** the significant dips -> table of features -- to do (`detect.find_features`)
-4. **Identify** them with a "comb" per species -- to do (`line_list`, `detect.identify`)
-5. **Measure** their equivalent widths -- done (`equivalent_width`), continuum error still to add
-6. **Curve of growth**: N and b per species -- done (`curve_of_growth`)
+3. **Detect** the significant dips -> table of features -- done (`detect.find_features`)
+4. **Identify** them with a "comb" per species -- done (`line_list`, `detect.identify`)
+5. **Measure** their equivalent widths -- done (`equivalent_width`, noise and continuum errors,
+   statistical and systematic)
+6. **Curve of growth**: N and b per species -- done (`curve_of_growth`), on 3C 273 for S II and Si II
+7. **Uncertainties**: chi2 map in (log N, b) -- done (`uncertainty`), rescaled by chi2_min/dof
 
 ### How identification works (the comb)
 A Doppler shift or a redshift multiplies every wavelength by the same
 factor, `lambda_obs = lambda_rest * (1 + z)`, so the *ratios* between
 the wavelengths of one species never change. Each species is a comb
-of known rest wavelengths (its teeth); we slide it over the spectrum
-(trial velocities, e.g. -600 to +600 km/s for a star, any z for a
-quasar absorber) and count how many teeth land on a detected dip. The
-best position gives the species' velocity and identifies the dips.
-Species are tried from the most common (H, He, Ca, Na, Mg, O, Fe...),
-and the matched dips are removed before the next one.
-- Hydrogen (and HeII) combs are computed from the Rydberg formula with
-  `scipy.constants`; other species come from a line table (NIST).
-- Strength ratios guard against chance matches: a species is rejected
-  if a line predicted to be strong is missing, and doublets (CaII H&K,
-  NaD) must have EW ratios between 2:1 (weak lines) and 1:1 (saturated),
-  which is the curve of growth again.
-- Earth's atmosphere (O2 at 6870 and 7600 A, H2O) is treated as one
-  more "species", so that its bands are not taken for stellar lines.
+of known rest wavelengths (its teeth, from NIST). Each detected feature
+is tried as each tooth, which gives a candidate velocity (-600 to +600
+km/s). A comb defines a system if:
+- at least 3 teeth land on features, within 15 km/s;
+- the EW ratios are consistent: for a weaker and a stronger line,
+  `W/lambda` ratio between the `f*lambda` ratio (linear part of the
+  curve of growth) and 1 (saturated), within 3 errors;
+- no tooth stronger than a matched one is missing where there is data.
+
+The best comb sets the system velocity; every species is then labelled
+at that velocity (within 10 km/s), single-line species included (C II
+1334, Si III 1206, O I 1302). The matched features are removed and the
+search repeats. A species with a single line in the range (H I in the
+COS far UV) cannot define a system on its own. By default the teeth are
+ground-level lines (cold gas); `CombSettings.e_low_max` allows excited
+levels, e.g. the Balmer lines of a star.
 
 ## Data
-- **Main spectrum**: the A0 star SDSS J172637.24+264127.6 (SDSS
+- **Main spectrum since Nov 18**: the quasar 3C 273, HST/COS G130M
+  co-add of the Hubble Spectroscopic Legacy Archive
+  (`hst_cos_3c273--0392_g130m-lp01_cspec.fits`; 1134-1470 A, R ~ 18000,
+  S/N ~ 39), read with `spectrum_reader.read_hsla` and downloaded by
+  `notebooks/full_quasar_tutorial.ipynb` into `data/mast/`. The STIS
+  E140M co-add is read too, for comparison.
+- **First spectrum**: the A0 star SDSS J172637.24+264127.6 (SDSS
   2182-53905-0101; 3810-9210 A, vacuum wavelengths, 69 km/s pixels,
   resolution R ~ 2000, S/N ~ 60). Downloaded with
   `mast_archive.query_mast` / `mast_archive.download_mast_spectra` into `data/mast/`
@@ -62,12 +75,13 @@ figures/         Reference and illustration images used by the notebooks
 data/            Small example spectra
 Projects.pdf     Project statement
 ```
-Current structure: `spectral_diag/` has the package skeleton (shared
-`Spectrum`/`Line`/`Absorber` classes in `data_classes.py`, one stub module per
-planned component). Implemented so far: `line_profiles` (Gaussian and Voigt
-optical depth), `equivalent_width`, `synthetic_spectrum`, `mast_archive`,
-`spectrum_reader`, `continuum`, `line_list` (CIV, SiII, FeII)
-and `curve_of_growth` (see Progress log below).
+Implemented: `data_classes` (shared `Spectrum`/`Line`/`Absorber`),
+`line_profiles` (Gaussian and Voigt optical depth), `equivalent_width`,
+`synthetic_spectrum`, `mast_archive`, `spectrum_reader` (SDSS, COS x1dsum,
+HSLA co-adds), `continuum`, `detect` (`find_features`, `identify`),
+`line_list` (19 species from NIST), `curve_of_growth`, `uncertainty`
+(chi2 map) and `plots`. The two tutorials, `full_star_tutorial.ipynb` and
+`full_quasar_tutorial.ipynb`, run the whole chain on real data.
 
 ## Installation
 ```bash
@@ -89,7 +103,9 @@ To be written once the first end-to-end pipeline runs.
 | Date | Milestone |
 |---|---|
 | Oct 14 | Check-in 1: absorption chain validated on synthetic spectra (profiles, EW, COG). Feedback: start from a real spectrum, continuum first, then find and identify the lines |
-| Nov 18 | Check-in 2: on the star, continuum + automatic detection + comb identification + EWs; curve of growth for the species with several lines |
+| Nov 18 | Check-in 2: star done up to detection; scope moved to the quasar 3C 273 |
+| Nov 22 | 3C 273: continuum, detection, comb identification, curves of growth of S II and Si II |
+| Nov 26 | Star run to the end (counter-example); chi2 map of the curves of growth |
 | Dec 9 | Oral presentation (50% of the course grade) |
 
 ## Team
@@ -214,7 +230,7 @@ Details and interface in `Work_split.pdf`.
 - First real spectrum: before the planetary nebulae, the absorption
   chain is tested on the A0 star SDSS J172637.24+264127.6 (SDSS
   2182-53905-0101, 3810-9210 A, R ~ 2000, S/N 62). `mast_archive.query_mast`,
-  `mast_archive.download_mast_spectra` and `sdss_reader.read_sdss_spec` (Pablo) fetch and
+  `mast_archive.download_mast_spectra` and `spectrum_reader.read_sdss_spec` (Pablo) fetch and
   read it (`notebooks/full_star_tutorial.ipynb`, section 2); a pytest suite (`tests/`)
   automates the earlier notebook checks.
 - `continuum.py`: `fit_continuum(spectrum, knot_spacing=250, k_low=2,
@@ -252,3 +268,43 @@ Details and interface in `Work_split.pdf`.
   changed nothing on the star); `curve_of_growth` split into small
   functions with full names. The two continuum notebooks are merged
   into `05_continuum.ipynb`.
+- Nov 18 (Gael): scope moved to the quasar 3C 273 (HST/COS G130M). Line
+  lists from NIST only, saved in `data/line_lists/`. Continuum error
+  propagated into the EWs. `detect.identify`: one comb per species,
+  candidate velocities from each feature and each line, at least 3
+  matched lines with consistent EW ratios and no strong line missing;
+  every species is then labelled at the system velocity.
+  `tests/test_identify.py` (features tables) and
+  `notebooks/07_identification.ipynb` (synthetic COS spectra with a Milky
+  Way absorber, a high-velocity cloud and 30 unrelated lines): over 30
+  spectra, every system found within 1 km/s (+0.2 +- 0.7 km/s), no false
+  system, 776 correct labels, 7 wrong, 4 missed lines.
+- Nov 18-22 (Pablo): `spectrum_reader.read_cos_x1dsum` and `read_hsla`;
+  `continuum` option `clip_high`. Quasar tutorial: geocoronal Ly-alpha
+  cut (1214-1217 A), continuum with 2 A knots, detection at 12 sigma
+  (threshold set from an emission search, where every feature is noise):
+  44 features.
+- Nov 22 (Gael): `continuum.continuum_systematic_error` (refit with the
+  knot spacing +-20 %; ~1.4x the statistical error on 3C 273), added to
+  the continuum error of the EWs. `identify` on 3C 273: one system, the
+  Milky Way at -12.7 km/s, 19 of 44 features labelled (Fe II, Si II, N I,
+  Si III, N V, S II, C I, O I, C II, Si IV); Si II 1190 is only accepted
+  with the systematic error. Curves of growth (`measured_ews`,
+  `plots.plot_curve_of_growth`): S II log N = 15.33 +- 0.04, b = 21.8
+  km/s; Si II 15.08 +- 0.06, b = 31.4 km/s, against 15.46 and 15.10 in
+  Sembach et al. 2001 (astro-ph/0108047). Si II is saturated and not
+  robust (16.14 with 3 lines instead of 4).
+- Nov 26 (Gael): star tutorial run to the end. `CombSettings.e_low_max`
+  (default 0, ground level only) lets the Balmer lines form a comb; the
+  strength check rejects them (H-alpha has the largest f*lambda but the
+  smallest W/lambda), so it is turned off for the star. One system at
+  -31 km/s (SDSS: -37); the Balmer curve of growth gives chi2 = 2378 for
+  5 dof and b = 103 km/s against 12.6 km/s thermal: Stark wings and a
+  photosphere, not a slab, so N and b have no physical meaning there.
+- Nov 26 (Gael): `uncertainty.chi2_map` (chi2 on a 241 x 150 grid of
+  (log N, b)), `profile` and `profile_interval` (68 and 95 % intervals
+  from the profile, Delta chi2 = 1 and 3.84), rescaled by chi2_min/dof;
+  `plots.plot_chi2_map`, `plot_profiles`. Validated in
+  `notebooks/08_chi2_map.ipynb` and `tests/test_uncertainty.py`. On 3C 273:
+  S II log N = 15.33 +0.10/-0.09; Si II has two minima (15.08 and ~16.2),
+  14.8-16.5 at 95 %: its saturated lines do not pin N down.

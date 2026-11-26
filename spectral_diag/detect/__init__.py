@@ -20,26 +20,29 @@ Work_split.pdf.
                     continuum error if `spectrum.continuum_error` is set
         snr         detection significance, ew / ew_err
 
-- identify(features, species, v_range=(-600, 600), tol=None)   [Gael]
-    Slide the "comb" of each species (its rest wavelengths, from
-    line_list) over the features: for each trial velocity v, place the
-    teeth at lambda_rest * (1 + v / c) and score the teeth that land on
-    a feature within `tol` (default: about one resolution element),
-    weighted by the expected line strength and penalised for strong
-    lines that are missing. Species are tried from the most common
-    (H first); matched features are removed before the next species.
-    Returns the features table with added columns `species`, `line`
-    (Line.name), `wave_rest` and `v` (km/s); unmatched features are
-    left blank.
+- identify(features, spectrum, species, settings=CombSettings())   [Gael]
+    One "comb" per species (its lines, fixed wavelength ratios), tried
+    at the velocity v = cz where any tooth lands on any feature; the comb
+    with the most matched teeth sets a system velocity, at which every
+    species is then matched (see identify.py). Adds the columns species,
+    line (Line.name), wave_rest (Angstrom) and v (km/s), blank for
+    unidentified features, and meta["systems"] (velocities, km/s).
 
 Layout (one module per job; `identify` goes in its own module):
     features.py      find_features, the pipeline that builds the table
     significance.py  signal relative to the continuum, matched filter, windows
                      and their split between resolved lines
     measure.py       centre (Gaussian fit), depth and EW of one feature
-    identify.py      [Gael] to add, and to re-export here
+    identify.py      comb identification of the features [Gael]
 """
 
 from .features import FEATURE_COLUMNS, find_features
+from .identify import IDENTIFY_COLUMNS, CombSettings, identify
 
-__all__ = ["FEATURE_COLUMNS", "find_features"]
+__all__ = [
+    "FEATURE_COLUMNS",
+    "IDENTIFY_COLUMNS",
+    "CombSettings",
+    "find_features",
+    "identify",
+]

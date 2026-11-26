@@ -1,4 +1,5 @@
-"""Read observed spectra (SDSS spec / spec-lite, HST/COS x1dsum) into a Spectrum."""
+"""Read observed spectra into a Spectrum: SDSS spec / spec-lite, HST/COS x1dsum and
+HST co-adds of the Hubble Spectroscopic Legacy Archive (HSLA, COS and STIS)."""
 
 from pathlib import Path
 
@@ -115,13 +116,13 @@ def _sdss_meta(path, header, specobj):
     }
 
 
-# --- HST/COS --------------------------------------------------------------------------
+# --- HST: shared constants and COS line spread function -------------------------------
 
-# Fixed by the COS x1dsum data model (unit of the FLUX column)
-COS_FLUX_UNIT = "erg s^-1 cm^-2 Angstrom^-1"
-# COS files are missing some of the needed variables
-# Line spread functions measured by STScI, one table per grating, central
-# wavelength and lifetime position (COS "Spectral Resolution" web page)
+# Unit of the FLUX column of HST 1D spectra (COS and STIS x1d, x1dsum, HSLA)
+HST_FLUX_UNIT = "erg s^-1 cm^-2 Angstrom^-1"
+# COS files do not store the instrumental resolution. Line spread functions
+# measured by STScI, one table per grating, central wavelength and lifetime
+# position (COS "Spectral Resolution" web page)
 COS_LSF_URL = (
     "https://www.stsci.edu/files/live/sites/www/files/home/hst/instrumentation/"
     "cos/performance/spectral-resolution/_documents/"
@@ -129,69 +130,34 @@ COS_LSF_URL = (
 )
 
 
-def read_cos_x1dsum(path):
-    """Load an HST/COS FUV x1dsum file into a Spectrum.
+def _cos_lsf_fwhm_kms(setup, pixel_width):
+    """Median FWHM of the STScI LSF table of a COS observing setup.
 
-    Joins the detector segments present in the file (FUVA and/or FUVB,
-    separated by the detector gap) and drops pixels with DQ_WGT == 0,
-    flagged by the pipeline. COS wavelengths are vacuum, heliocentric. The instrumental
-    FWHM comes from the STScI LSF table of the observing setup, which is
-    downloaded on the first call and cached by astropy.
+    The table is downloaded on the first call and cached by astropy.
 
     Parameters
     ----------
-    path : str or Path
-        *_x1dsum.fits file.
+    setup : mapping
+        OPT_ELEM or DISPERSER (grating), CENWAVE (Angstrom) and LIFE_ADJ
+        (lifetime position): a primary header or a PROVENANCE row.
+    pixel_width : float
+        Width of a detector pixel, Angstrom.
 
     Returns
     -------
-    spectrum : Spectrum
-        Flux and error in `COS_FLUX_UNIT`, wave sorted. `meta` holds the
-        standard keys (see `Spectrum`, fwhm_kms is the median over the
-        band) plus the grating central wavelength, cenwave (Angstrom).
+    fwhm_kms : float
+        Median over the tabulated wavelengths, km/s.
     """
-    with fits.open(path) as fits_file:
-        header = fits_file[0].header
-        science_header = fits_file["SCI"].header
-        wave, flux, error = _join_cos_segments(fits_file["SCI"].data)
-
-    # Segments do not overlap, so sorting only puts FUVB before FUVA
-    order = np.argsort(wave)
-    wave, flux, error = wave[order], flux[order], error[order]
-    # Steps across the detector gap or across dropped pixels are much wider
-    # than one pixel; the median ignores them
-    pixel_width = np.median(np.diff(wave))
-    fwhm_kms = _cos_fwhm_kms(_cos_lsf_file(header), pixel_width)
-    meta = _cos_meta(path, header, science_header)
-    meta["fwhm_kms"] = fwhm_kms
-    meta["R"] = constants.C_KMS / fwhm_kms
-    meta["snr"] = float(np.median(flux / error))
-    return Spectrum(wave=wave, flux=flux, error=error, meta=meta)
-
-
-def _cos_lsf_file(header):
-    """Local copy of the STScI LSF table matching a COS observation.
-
-    Parameters
-    ----------
-    header : astropy.io.fits.Header
-        Primary header (OPT_ELEM grating, CENWAVE, LIFE_ADJ lifetime
-        position).
-
-    Returns
-    -------
-    path : str
-        File in the astropy download cache.
-    """
+    grating = setup["OPT_ELEM"] if "OPT_ELEM" in setup else setup["DISPERSER"]
     url = COS_LSF_URL.format(
-        grating=header["OPT_ELEM"],
-        cenwave=header["CENWAVE"],
-        lifetime_position=header["LIFE_ADJ"],
+        grating=grating,
+        cenwave=setup["CENWAVE"],
+        lifetime_position=setup["LIFE_ADJ"],
     )
-    return download_file(url, cache=True)
+    return _lsf_table_fwhm_kms(download_file(url, cache=True), pixel_width)
 
 
-def _cos_fwhm_kms(lsf_file, pixel_width):
+def _lsf_table_fwhm_kms(lsf_file, pixel_width):
     """Median FWHM of the LSFs tabulated in a STScI COS LSF table.
 
     Parameters
@@ -238,6 +204,48 @@ def _fwhm_pixels(profile):
     return right - left
 
 
+# --- HST/COS x1dsum: one visit --------------------------------------------------------
+
+
+def read_cos_x1dsum(path):
+    """Load an HST/COS FUV x1dsum file (one visit) into a Spectrum.
+
+    Joins the detector segments present in the file (FUVA and/or FUVB,
+    separated by the detector gap) and drops pixels with DQ_WGT == 0,
+    flagged by the pipeline. COS wavelengths are vacuum, heliocentric.
+    The instrumental FWHM comes from the STScI LSF table of the
+    observing setup.
+
+    Parameters
+    ----------
+    path : str or Path
+        *_x1dsum.fits file.
+
+    Returns
+    -------
+    spectrum : Spectrum
+        Flux and error in `HST_FLUX_UNIT`, wave sorted. `meta` holds the
+        standard keys (see `Spectrum`, fwhm_kms is the median over the
+        band) plus the grating central wavelength, cenwave (Angstrom).
+    """
+    with fits.open(path) as fits_file:
+        header = fits_file[0].header
+        science_header = fits_file["SCI"].header
+        wave, flux, error = _join_cos_segments(fits_file["SCI"].data)
+
+    # Segments do not overlap, so sorting only puts FUVB before FUVA
+    order = np.argsort(wave)
+    wave, flux, error = wave[order], flux[order], error[order]
+    # Steps across the detector gap or across dropped pixels are much wider
+    # than one pixel; the median ignores them
+    fwhm_kms = _cos_lsf_fwhm_kms(header, np.median(np.diff(wave)))
+    meta = _x1dsum_meta(path, header, science_header)
+    meta["fwhm_kms"] = fwhm_kms
+    meta["R"] = constants.C_KMS / fwhm_kms
+    meta["snr"] = float(np.median(flux / error))
+    return Spectrum(wave=wave, flux=flux, error=error, meta=meta)
+
+
 def _join_cos_segments(segments):
     """Concatenate the valid pixels of all COS segments.
 
@@ -264,8 +272,8 @@ def _join_cos_segments(segments):
     )
 
 
-def _cos_meta(path, header, science_header):
-    """Provenance and observation keys of a COS spectrum.
+def _x1dsum_meta(path, header, science_header):
+    """Provenance and observation keys of a COS x1dsum spectrum.
 
     Parameters
     ----------
@@ -290,6 +298,113 @@ def _cos_meta(path, header, science_header):
         "mjd": float(science_header["EXPSTART"]),
         "exptime": float(science_header["EXPTIME"]),
         "wave_frame": "vacuum, heliocentric",
-        "flux_unit": COS_FLUX_UNIT,
+        "flux_unit": HST_FLUX_UNIT,
         "cenwave": int(header["CENWAVE"]),
+    }
+
+
+# --- HSLA co-adds: all the visits of one grating --------------------------------------
+
+
+def read_hsla(path):
+    """Load an HST co-add (COS or STIS) of the Hubble Spectroscopic Legacy Archive.
+
+    HSLA (Peeples et al. 2017; Debes et al. 2020, RNAAS 4, 205) co-adds
+    all the x1d exposures of one target taken with one grating, over
+    every central wavelength, on a single wavelength grid. The detector
+    gaps and artefacts of each setup then fall at different wavelengths
+    and are filled or diluted. Pixels that no exposure covers are
+    dropped. Wavelengths are vacuum, heliocentric.
+
+    Parameters
+    ----------
+    path : str or Path
+        hst_cos_*_cspec.fits or hst_stis_*_cspec.fits file.
+
+    Returns
+    -------
+    spectrum : Spectrum
+        Flux and error in `HST_FLUX_UNIT`. `meta` holds the standard keys
+        (see `Spectrum`; fwhm_kms is the median over the exposures) plus
+        cenwaves, the central wavelengths co-added (Angstrom).
+    """
+    with fits.open(path) as fits_file:
+        header = fits_file[0].header
+        science_header = fits_file["SCI"].header
+        science = fits_file["SCI"].data[0]
+        provenance = Table(fits_file["PROVENANCE"].data)
+
+    covered = science["EFF_EXPTIME"] > 0
+    wave = np.asarray(science["WAVELENGTH"], dtype=float)[covered]
+    flux = np.asarray(science["FLUX"], dtype=float)[covered]
+    error = np.asarray(science["ERROR"], dtype=float)[covered]
+    fwhm_kms = _hsla_fwhm_kms(header, provenance, np.median(np.diff(wave)))
+    meta = _hsla_meta(path, header, science_header, provenance)
+    meta["fwhm_kms"] = fwhm_kms
+    meta["R"] = constants.C_KMS / fwhm_kms
+    meta["snr"] = float(np.median(flux / error))
+    return Spectrum(wave=wave, flux=flux, error=error, meta=meta)
+
+
+def _hsla_fwhm_kms(header, provenance, pixel_width):
+    """Median instrumental FWHM over the exposures of an HSLA co-add.
+
+    Parameters
+    ----------
+    header : astropy.io.fits.Header
+        Primary header (INSTRUME).
+    provenance : astropy.table.Table
+        PROVENANCE HDU, one row per exposure (DISPERSER, CENWAVE,
+        LIFE_ADJ, SPECRES).
+    pixel_width : float
+        Width of a pixel of the co-add, Angstrom. The COS LSF tables are
+        sampled on detector pixels; the co-add grid is within 0.5% of
+        them for G130M.
+
+    Returns
+    -------
+    fwhm_kms : float
+        km/s.
+    """
+    # STIS has no LSF tables of the COS format; SPECRES is the nominal R
+    if header["INSTRUME"] != "COS":
+        return float(np.median(constants.C_KMS / provenance["SPECRES"]))
+    fwhm_kms = []
+    for exposure in provenance:
+        fwhm_kms.append(_cos_lsf_fwhm_kms(exposure, pixel_width))
+    return float(np.median(fwhm_kms))
+
+
+def _hsla_meta(path, header, science_header, provenance):
+    """Provenance and observation keys of an HSLA co-add.
+
+    Parameters
+    ----------
+    path : str or Path
+        File the spectrum was read from.
+    header : astropy.io.fits.Header
+        Primary header (instrument, grating, target position, HSLANAME).
+    science_header : astropy.io.fits.Header
+        SCI header (MJD-BEG of the first exposure, XPOSURE summed over
+        exposures, s).
+    provenance : astropy.table.Table
+        PROVENANCE HDU, one row per exposure.
+
+    Returns
+    -------
+    meta : dict
+        Keys described in `Spectrum` and `read_hsla`.
+    """
+    cenwaves = sorted(set(int(cenwave) for cenwave in provenance["CENWAVE"]))
+    return {
+        "instrument": f"HST/{header['INSTRUME']} {header['GRATING']}",
+        "source": Path(path).name,
+        "obs_id": header["HSLANAME"],
+        "ra": float(header["RA_TARG"]),
+        "dec": float(header["DEC_TARG"]),
+        "mjd": float(science_header["MJD-BEG"]),
+        "exptime": float(science_header["XPOSURE"]),
+        "wave_frame": "vacuum, heliocentric",
+        "flux_unit": HST_FLUX_UNIT,
+        "cenwaves": cenwaves,
     }

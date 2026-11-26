@@ -3,6 +3,7 @@
 - theoretical_ew: W(logN, b) for a given Line, valid in the linear,
   saturated and damped regimes
 - ew_linear: analytic W in the optically thin limit (independent of b)
+- measured_ews: the EWs of one species from the identified features
 - fit_cog: given measured EWs for several lines of the same species,
   solve for (logN, b)
 
@@ -161,6 +162,7 @@ def fit_cog(lines, ews, z=0.0, logN_bounds=(10.0, 22.0), b_bounds=(1.0, 200.0)):
             matrix (nan if the fit does not constrain them).
         cov : 2x2 covariance matrix of (logN, b).
         chi2, dof : chi-square at the best fit and degrees of freedom.
+        z : the redshift given.
     """
     measured_lines = _lines_with_measurements(lines, ews)
 
@@ -184,7 +186,31 @@ def fit_cog(lines, ews, z=0.0, logN_bounds=(10.0, 22.0), b_bounds=(1.0, 200.0)):
         "cov": covariance,
         "chi2": float(np.sum(fit.fun**2)),
         "dof": len(measured_lines) - 2,
+        "z": z,
     }
+
+
+def measured_ews(identified, species):
+    """Equivalent widths of the features identified as `species`.
+
+    Parameters
+    ----------
+    identified : astropy.table.Table
+        Output of `detect.identify` (uses the columns species, line, ew
+        and ew_err).
+    species : str
+        e.g. "SII".
+
+    Returns
+    -------
+    ews : dict
+        {line name: (W, W_err)}, Angstrom, as `fit_cog` takes them.
+    """
+    ews = {}
+    for row in identified:
+        if row["species"] == species:
+            ews[row["line"]] = (row["ew"], row["ew_err"])
+    return ews
 
 
 def _lines_with_measurements(lines, ews):

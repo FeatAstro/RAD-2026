@@ -3,9 +3,12 @@
 The continuum is a cubic spline fitted by least squares to the pixels
 that are not in a line. Lines are found by sigma clipping: pixels more
 than `clip_low` errors below the fit are rejected, the spline is
-refitted, and so on until the set of used pixels stops changing. Only
-pixels below the fit are rejected, because absorption only removes
-flux.
+refitted, and so on until the set of used pixels stops changing. By
+default only pixels below the fit are rejected, because absorption only
+removes flux.
+Pixels more than `clip_high` errors above the fit can be
+rejected too, for emission that is not part of the continuum (e.g.
+geocoronal Ly-alpha in HST/COS spectra).
 """
 
 # TODO: for Doppler-broadened lines (quasar absorbers, 21 cm), give
@@ -23,6 +26,9 @@ SPLINE_DEGREE = 3
 # Fewest used pixels allowed between two knots: the 4 coefficients of
 # the cubic in that interval must be well constrained
 MIN_PIXELS_PER_INTERVAL = 10
+# The knot spacing is a choice, not a measurement: refitting with spacings
+# this fraction smaller and larger shows how much the continuum depends on it
+KNOT_SPACING_VARIATION = 0.2
 
 
 @dataclass(frozen=True)
@@ -37,12 +43,17 @@ class ContinuumSettings:
         shape of the continuum.
     clip_low : float
         Pixels more than clip_low errors below the fit are rejected.
+    clip_high : float
+        Pixels more than clip_high errors above the fit are rejected.
+        Infinite by default: for a pure absorption spectrum, rejecting
+        upward noise would bias the continuum low.
     max_iter : int
         Maximum number of fit-and-clip iterations.
     """
 
     knot_spacing: float = 250.0
     clip_low: float = 2.0
+    clip_high: float = np.inf
     max_iter: int = 20
 
 
@@ -98,6 +109,34 @@ def fit_continuum(spectrum, settings=ContinuumSettings()):
     return ContinuumFit(continuum, error, used, n_iter, status)
 
 
+def continuum_systematic_error(spectrum, settings=ContinuumSettings()):
+    """Systematic error of the continuum from the choice of knot spacing.
+
+    The continuum is refitted with the knot spacing KNOT_SPACING_VARIATION
+    smaller and larger; at each pixel the error is the largest difference
+    from the fit at the chosen spacing. It adds to `ContinuumFit.error`
+    in quadrature.
+
+    Parameters
+    ----------
+    spectrum : Spectrum
+    settings : ContinuumSettings
+        The settings of the chosen fit.
+
+    Returns
+    -------
+    error : array
+        Units of the flux. NaN where one of the fits is undefined.
+    """
+    chosen_continuum = fit_continuum(spectrum, settings).continuum
+    error = np.zeros(len(spectrum.wave))
+    for factor in (1 - KNOT_SPACING_VARIATION, 1 + KNOT_SPACING_VARIATION):
+        varied_settings = replace(settings, knot_spacing=settings.knot_spacing * factor)
+        varied_continuum = fit_continuum(spectrum, varied_settings).continuum
+        error = np.maximum(error, np.abs(varied_continuum - chosen_continuum))
+    return error
+
+
 def normalise(spectrum, continuum):
     """Return a copy of `spectrum` divided by `continuum`.
 
@@ -127,7 +166,7 @@ def normalise(spectrum, continuum):
 
 
 def _clip_until_stable(spectrum, settings):
-    """Fit, reject the pixels far below the fit, and repeat until stable.
+    """Fit, reject the pixels far below (or above) the fit, and repeat until stable.
 
     Every pixel is tested against each new fit, so pixels rejected
     earlier can come back: the first fits run through the lines, below
@@ -152,7 +191,9 @@ def _clip_until_stable(spectrum, settings):
         # Evaluated at every pixel, also beyond the used ones, so that
         # pixels rejected at the ends can come back
         deviation = (spectrum.flux - spline(spectrum.wave)) / spectrum.error
-        new_used = deviation >= -settings.clip_low
+        new_used = (deviation >= -settings.clip_low) & (
+            deviation <= settings.clip_high
+        )
         if np.array_equal(new_used, used):
             return used, n_iter, "converged"
         used = new_used

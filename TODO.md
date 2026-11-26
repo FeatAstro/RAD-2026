@@ -1,62 +1,78 @@
 # To do — Gaël
 
-Last updated 18 November 2026.
+Last updated 26 November 2026.
+
+Scope since 18 November: the quasar 3C 273 (HST/COS G130M) is the main target:
+identify, comb, EWs and curve of growth. The A0 star stays as done up to detection;
+its rotation (v sin i) is an "if time" extra. Separating unresolved blends is not
+needed (teacher). Oral on **9 December**.
 
 ## Now (git)
 
-- [x] Push `gael` (`git push`) and open the PR into `main`
-      ("Simplify continuum and curve-of-growth internals, comment InstrumentGrid").
-- [x] After Pablo approves and merges: pull `main` into `gael` (and Pablo into `pablo`).
-- [x] Push the updated `gael` (`git push origin gael`).
-- [x] Merge `main` (Pablo's PR #9: full-star tutorial, plots, features table) into
-      `gael`; `Work_split.tex/.pdf` conflicts resolved with main's version (17 Nov).
+- [x] PR #10 (`gael`: NIST line lists, continuum error in EWs) merged into `main`.
+- [x] Pablo's PR #11 (`spectrum_reader` with `read_cos_x1dsum`, quasar tutorial) merged;
+      `main` pulled into `gael` (18 Nov).
+- [x] Pablo's 3 commits (`clip_high`, `read_hsla`, quasar continuum and detection) merged
+      into `gael` (22 Nov); they go to `main` with the next `gael` PR.
+- [x] CLAUDE.md, `Work_split.tex`, README updated to the quasar focus (22 Nov).
+- [ ] Push `gael` and open the PR into `main`; then pull `main` into both branches.
 
-## Before check-in 2 (18 November)
+## Quasar 3C 273 (18 November – 8 December)
 
-- [ ] **Line list for the star** (`line_list`):
-  - [x] NIST only (Verner table removed): `download_line_table` saves each species in
-        `data/line_lists/` (committed), `get_lines` reads it offline;
-  - [x] hydrogen: `LineSelection(multiplet_totals=True)`, one line per n -> n', checked
-        against the Rydberg formula (offsets 2–3 km/s);
-  - [ ] table of A0 star lines: Ca II K and H, Mg II 4481, O I 7774 triplet, Na I D,
-        Ca II triplet near 8500, a few Fe II;
-  - [ ] telluric O2 A-band (7594–7621 Å) as one more "species".
-- [ ] **`detect/identify.py`, simple version**:
-  1. identify the hydrogen lines;
-  2. take their mean velocity (expect about −37 km/s);
-  3. match the other features to the nearest predicted line within ~3 × `wave_err`.
+1. [x] **Continuum** (Pablo): geocoronal Lyα cut (1214–1217 Å), spline with 2 Å knots;
+       systematic error from knot spacings ±20 % (`continuum_systematic_error`, Gaël,
+       ~1.4× the statistical error).
+2. [x] **Detection** (Pablo): HSLA COS co-add, threshold 12σ set from an emission
+       (noise-only) search; 44 features.
+3. [x] **`detect/identify.py`: comb identification** (Gaël): validated on 30 synthetic
+       COS spectra (`07_identification.ipynb`); on 3C 273 one system, the Milky Way at
+       −12.7 km/s, 19 of 44 features labelled (quasar tutorial, section 4).
+       Not done: Virgo Lyα and the forest (one H I line in range, no comb possible);
+       blends not flagged (Si II / Fe II 1260, Si IV 1393.8).
+4. [x] **EWs and curve of growth** (quasar tutorial, section 5): S II log N = 15.33
+       ± 0.04, b = 21.8 km/s; Si II 15.08 ± 0.06, b = 31.4 km/s (χ² 31 / 2 dof).
+       Sembach et al. 2001 (astro-ph/0108047, Table 5): 15.46 and 15.10. S II is at
+       the knee of the COG, not linear. Si II is not robust: with 3 lines (no 1190) the
+       fit gives 16.14, b = 20.7 km/s.
+       - [ ] Check the Table 5 values (Si II, b) in the PDF before the slides.
+       - [ ] Convert our heliocentric velocities to the LSR before comparing velocities.
+5. [x] **Uncertainties** (26 Nov): χ² map in (log N, b) (`uncertainty.py`, validated in
+       `08_chi2_map.ipynb`), rescaled by χ²_min/dof (5.0 and 15.7). S II log N = 15.33
+       +0.10/−0.09; Si II has two minima (15.08 and ≈ 16.2), 14.8–16.5 at 95 %.
+6. [ ] **Plots and slides** from about 1 December: spectrum with labelled lines,
+       curve of growth with measured points and fit; rehearsal.
 
-  Adds the columns `species`, `line`, `wave_rest`, `v`.
-- [x] **Continuum error in `measure_ew`**: `ContinuumFit.error` propagated (fully
-      correlated over the window), via `Spectrum.continuum_error` into the features' `ew_err`.
-- [ ] Optionally a systematic from refitting with knot spacings of 200 and 300 Å: the
-      spread between spacings (0.4–1.0 Å on the Balmer lines) is 2–4× the statistical
-      continuum error (~0.3 Å).
-- [ ] **Validation**: a pytest with a hand-written features table of the star, and a
-      notebook showing the identified spectrum (the check-in demo).
+## If time
 
-## After the check-in (18 November – 8 December)
+- [ ] C I 1277.3 and 1328.9 sit ~+20 km/s from the system (a second cloud group?); the
+      C I 1276.5 label is doubtful (C I 1277.2, 25× stronger, not matched).
+- [ ] Mark leftover features between 1216 and 1408 Å as probable Lyα.
 
-- [ ] Comb scan identification at an unknown velocity / z (−600…+600 km/s, scored by
-      expected strength).
-- [ ] Curve of growth on 3C 273 (HST/COS G130M, `lbgl31020`; HSLA co-add has ~1.8x the
-      S/N): S II 1250/1253/1259 (linear part) + Si II 1190/1193/1260/1304 (saturated).
-      Waits for Pablo's COS reader; continuum fitted locally around each line. (The
-      single-slab model does not hold for the star's Balmer lines.)
-- [ ] Uncertainties (`uncertainty.py`: bootstrap or χ² grid on N, b).
-- [ ] One clear plot of the spectrum with labelled lines (`plots.py`; Pablo's
-      `plot_features` already marks the detected features, add the line labels).
-- [ ] Slides and rehearsal from about 1 December; **oral on 9 December**.
+- [ ] Star: v sin i from the width of Mg II 4481 (measurable only if ≳ 100 km/s at
+      SDSS resolution, else an upper limit).
+- [ ] Comb on a synthetic spectrum at unknown z (larger z range).
+- [x] Continuum systematic: refit with knot spacings ±20 % (`continuum_systematic_error`;
+      on 3C 273 ~1.4× the statistical error; on the star, the spread
+      between spacings was 2–4× the statistical continuum error).
+
+## Done (star, up to 18 November)
+
+- [x] Star tutorial run to the end (26 Nov): `identify` with `CombSettings.e_low_max = 11`
+      (Balmer, n = 2) and the strength check off (it rejects the Balmer series: Halpha has
+      the smallest W/lambda); system at -31 km/s (SDSS: -37). Balmer COG: log N = 16.7,
+      b = 103 km/s, chi2 2378 / 5: not a column density nor a Doppler parameter (Stark
+      wings, photosphere is not a slab). Blends not separated, stated as a limit.
+
+- [x] Line lists: NIST only (Verner removed), saved in `data/line_lists/`; hydrogen
+      `multiplet_totals`, checked against the Rydberg formula (offsets 2–3 km/s).
+- [x] Continuum error propagated into `measure_ew` and the features' `ew_err`.
+- [x] Star: reading, continuum, detection (Pablo), full-star tutorial.
 
 ## To discuss with Pablo
 
-- [ ] The SDSS error bars look about 20% too large (continuum χ²_ν = 0.60), so the 4σ
-      detection threshold is really about 5σ: keep it, or rescale the errors?
-- [x] `feature_windows` uses `ndimage.label`: Pablo replaced it with a plain loop.
-- [x] Tell him: `_kernel_weighted_sum` is back to `np.convolve` (his double loop was
-      ~1300x slower, 19 ms vs 0.014 ms), with a comment saying why. Commit on `gael`;
-      he matched it on `pablo` in PR #9.
-- [ ] COS reader: tell him the HSLA co-add (`hst_cos_3c273--0392_g130m-lp01_cspec.fits`)
-      has the same columns as an x1dsum.
-- [ ] Split features (`split_blends`): agree on the `blended` column he proposes, so
-      `identify` knows which EWs need a joint fit.
+- [ ] The SDSS error bars look about 20% too large (continuum χ²_ν = 0.60): rescale?
+      (Less important now that the star is not the main target.)
+- [ ] Split features (`split_blends`): agree on the `blended` column, so `identify`
+      knows which EWs need a joint fit.
+- [x] COS reader done by Pablo (`spectrum_reader.read_cos_x1dsum`). Tell him the HSLA
+      co-add (`hst_cos_3c273--0392_g130m-lp01_cspec.fits`) has the same columns.
