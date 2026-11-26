@@ -49,6 +49,14 @@ class CombSettings:
     strength_tolerance_in_errors : float
         A tooth's W / lambda may leave its expected range by this many
         errors before its match is rejected (see `_wrong_strength`).
+        np.inf turns the check off, e.g. for a stellar photosphere, where
+        the strengths do not follow the curve of growth of a slab.
+    e_low_max : float
+        Highest lower-level energy of the teeth, eV. 0: ground level only
+        (cold ISM/CGM gas). For a star, 11 keeps the Balmer lines (n = 2,
+        10.2 eV) and leaves out the Paschen lines (n = 3, 12.1 eV), whose
+        strength relative to the Balmer lines depends on the population
+        of n = 3, which the strength rules cannot know.
     """
 
     velocity_min: float = -600.0
@@ -58,6 +66,7 @@ class CombSettings:
     f_min: float = 1e-3
     min_teeth: int = 3
     strength_tolerance_in_errors: float = 3.0
+    e_low_max: float = 0.0
 
 
 def identify(features, spectrum, species, settings=CombSettings()):
@@ -95,7 +104,9 @@ def identify(features, spectrum, species, settings=CombSettings()):
 
 
 def _comb(species, spectrum, settings):
-    """Ground-level lines of `species` that can fall in the spectrum.
+    """Lines of `species` that can fall in the spectrum.
+
+    Only lines from a lower level up to `settings.e_low_max` are kept.
 
     Parameters
     ----------
@@ -112,6 +123,7 @@ def _comb(species, spectrum, settings):
         wave_min=spectrum.wave[0] / (1 + settings.velocity_max / constants.C_KMS),
         wave_max=spectrum.wave[-1] / (1 + settings.velocity_min / constants.C_KMS),
         f_min=settings.f_min,
+        e_low_max=settings.e_low_max,
         # Hydrogen: one line per n -> n', not its fine-structure components
         multiplet_totals=species == "HI",
     )

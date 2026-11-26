@@ -12,7 +12,7 @@ from astropy.table import Table
 from spectral_diag import constants
 from spectral_diag.curve_of_growth import theoretical_ew
 from spectral_diag.data_classes import Spectrum
-from spectral_diag.detect import identify
+from spectral_diag.detect import CombSettings, identify
 from spectral_diag.line_list import LineSelection, get_lines
 
 COS_SEGMENTS = ((1142.0, 1289.0), (1298.0, 1444.0))
@@ -179,3 +179,28 @@ def test_chance_systems_rare_in_random_features():
         identified = identify(features, cos_like_spectrum(), SPECIES)
         false_systems += len(identified.meta["systems"])
     assert false_systems <= MAX_FALSE_SYSTEMS
+
+
+def test_balmer_series_found_with_excited_levels():
+    """The Balmer lines (lower level n = 2) form a comb once e_low_max allows it."""
+    balmer = get_lines(
+        "HI",
+        LineSelection(
+            wave_min=3800, wave_max=7000, e_low_max=11.0, multiplet_totals=True
+        ),
+    )
+    rows = []
+    for line in balmer:
+        wave = line.wave_rest * (1 + SYSTEM_VELOCITY / constants.C_KMS)
+        rows.append((wave, 10.0, 0.3, line.name))
+    wave = np.arange(3800.0, 9200.0, 1.0)
+    spectrum = Spectrum(wave=wave, flux=np.ones(wave.size), error=np.ones(wave.size))
+    features = features_table(rows)
+
+    ground_only = identify(features, spectrum, ["HI"])
+    assert ground_only.meta["systems"] == []
+
+    settings = CombSettings(e_low_max=11.0, strength_tolerance_in_errors=np.inf)
+    with_excited = identify(features, spectrum, ["HI"], settings)
+    for row in with_excited:
+        assert row["line"] == row["truth"]

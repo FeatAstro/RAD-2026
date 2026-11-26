@@ -56,6 +56,12 @@ needed (teacher). Oral on **9 December**.
 
 ## Done (star, up to 18 November)
 
+- [x] Star tutorial run to the end (26 Nov): `identify` with `CombSettings.e_low_max = 11`
+      (Balmer, n = 2) and the strength check off (it rejects the Balmer series: Halpha has
+      the smallest W/lambda); system at -31 km/s (SDSS: -37). Balmer COG: log N = 16.7,
+      b = 103 km/s, chi2 2378 / 5: not a column density nor a Doppler parameter (Stark
+      wings, photosphere is not a slab). Blends not separated, stated as a limit.
+
 - [x] Line lists: NIST only (Verner removed), saved in `data/line_lists/`; hydrogen
       `multiplet_totals`, checked against the Rydberg formula (offsets 2–3 km/s).
 - [x] Continuum error propagated into `measure_ew` and the features' `ew_err`.
